@@ -18,6 +18,8 @@ const SETTINGS = "settings";
 const USER_PROFILES = "userProfiles";
 const GATEWAY_DOC = "gateway";
 const CALCULATOR_DOC = "calculator";
+const DEMAND_COLUMNS = "demandColumns";
+const DEMAND_CARDS = "demandCards";
 
 /** Taxas do gateway por número de parcelas (1–12). Valores em % (ex: 2.99). */
 export type GatewayFees = Record<number, number>;
@@ -297,4 +299,82 @@ export async function setUserProfile(
     email: profile.email?.trim(),
   });
   await setDoc(doc(db, USER_PROFILES, userId), data, { merge: true });
+}
+
+// --- Demandas (board estilo Trello) ---
+export interface DemandColumn {
+  id: string;
+  title: string;
+  order: number;
+}
+
+export interface DemandCard {
+  id: string;
+  columnId: string;
+  order: number;
+  title: string;
+  responsible: string;
+  dueDate: string;
+}
+
+export async function getDemandColumns(): Promise<DemandColumn[]> {
+  const snap = await getDocs(collection(db, DEMAND_COLUMNS));
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as DemandColumn));
+  list.sort((a, b) => a.order - b.order);
+  return list;
+}
+
+export async function addDemandColumn(column: Omit<DemandColumn, "id">): Promise<string> {
+  const data = {
+    title: String(column.title ?? "").trim(),
+    order: Number(column.order) ?? 0,
+  };
+  const ref = await addDoc(collection(db, DEMAND_COLUMNS), data);
+  return ref.id;
+}
+
+export async function updateDemandColumn(id: string, data: Partial<Pick<DemandColumn, "title" | "order">>): Promise<void> {
+  await setDoc(doc(db, DEMAND_COLUMNS, id), data, { merge: true });
+}
+
+export async function deleteDemandColumn(id: string): Promise<void> {
+  await deleteDoc(doc(db, DEMAND_COLUMNS, id));
+}
+
+export async function getDemandCards(): Promise<DemandCard[]> {
+  const snap = await getDocs(collection(db, DEMAND_CARDS));
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as DemandCard));
+  list.sort((a, b) => {
+    if (a.columnId !== b.columnId) return a.columnId.localeCompare(b.columnId);
+    return a.order - b.order;
+  });
+  return list;
+}
+
+export async function addDemandCard(card: Omit<DemandCard, "id">): Promise<string> {
+  const data = {
+    columnId: String(card.columnId),
+    order: Number(card.order),
+    title: String(card.title ?? "").trim(),
+    responsible: String(card.responsible ?? "").trim(),
+    dueDate: String(card.dueDate ?? "").trim(),
+  };
+  const ref = await addDoc(collection(db, DEMAND_CARDS), data);
+  return ref.id;
+}
+
+export async function updateDemandCard(id: string, data: Partial<Omit<DemandCard, "id">>): Promise<void> {
+  const clean: Record<string, unknown> = {};
+  if (data.columnId !== undefined) clean.columnId = data.columnId;
+  if (data.order !== undefined) clean.order = data.order;
+  if (data.title !== undefined) clean.title = String(data.title).trim();
+  if (data.responsible !== undefined) clean.responsible = String(data.responsible).trim();
+  if (data.dueDate !== undefined) clean.dueDate = String(data.dueDate).trim();
+  if (Object.keys(clean).length > 0) {
+    await setDoc(doc(db, DEMAND_CARDS, id), clean, { merge: true });
+  }
+}
+
+export async function deleteDemandCard(id: string): Promise<void> {
+  await deleteDoc(doc(db, DEMAND_CARDS, id));
 }

@@ -62,8 +62,6 @@ const DEFAULT_FEE_PCT = 2.99;
 export default function PublicOrderForm() {
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
-  const [rg, setRg] = useState("");
-  const [dataNascimento, setDataNascimento] = useState("");
   const [nacionalidade, setNacionalidade] = useState("");
   const [estadoCivil, setEstadoCivil] = useState("");
   const [profissao, setProfissao] = useState("");
@@ -156,8 +154,8 @@ export default function PublicOrderForm() {
       const clientId = await addClient({
         nome: nome.trim(),
         cpf: cpf.trim(),
-        rg: rg.trim(),
-        data_nascimento: dataNascimento.trim(),
+        rg: "",
+        data_nascimento: "",
         nacionalidade: nacionalidade.trim(),
         estado_civil: estadoCivil.trim(),
         profissao: profissao.trim(),
@@ -326,16 +324,6 @@ export default function PublicOrderForm() {
                 <div className="space-y-1.5">
                   <Label className="text-sm">CPF *</Label>
                   <Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" required />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">RG *</Label>
-                  <Input value={rg} onChange={(e) => setRg(e.target.value)} required />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Data de nascimento *</Label>
-                  <Input type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} required />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Nacionalidade *</Label>

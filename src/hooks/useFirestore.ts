@@ -22,8 +22,16 @@ import {
   deleteExpense as deleteExpenseApi,
   getUserProfile,
   setUserProfile,
+  getDemandColumns as getDemandColumnsApi,
+  addDemandColumn as addDemandColumnApi,
+  updateDemandColumn as updateDemandColumnApi,
+  deleteDemandColumn as deleteDemandColumnApi,
+  getDemandCards as getDemandCardsApi,
+  addDemandCard as addDemandCardApi,
+  updateDemandCard as updateDemandCardApi,
+  deleteDemandCard as deleteDemandCardApi,
 } from "@/lib/firestore";
-import type { GatewayFees, StatusPedido, CalculatorValues, UserProfile } from "@/lib/firestore";
+import type { GatewayFees, StatusPedido, CalculatorValues, UserProfile, DemandColumn, DemandCard } from "@/lib/firestore";
 import type { Expense } from "@/lib/firestore";
 import type { Product, Order } from "@/lib/mock-data";
 
@@ -222,5 +230,72 @@ export function useSetUserProfile() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["userProfile", variables.userId] });
     },
+  });
+}
+
+// --- Demandas (board) ---
+export function useDemandColumns() {
+  return useQuery({
+    queryKey: ["demandColumns"],
+    queryFn: getDemandColumnsApi,
+    placeholderData: [],
+  });
+}
+
+export function useAddDemandColumn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (column: Omit<DemandColumn, "id">) => addDemandColumnApi(column),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["demandColumns"] }),
+  });
+}
+
+export function useUpdateDemandColumn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Pick<DemandColumn, "title" | "order">> }) =>
+      updateDemandColumnApi(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["demandColumns"] }),
+  });
+}
+
+export function useDeleteDemandColumn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteDemandColumnApi(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["demandColumns", "demandCards"] }),
+  });
+}
+
+export function useDemandCards() {
+  return useQuery({
+    queryKey: ["demandCards"],
+    queryFn: getDemandCardsApi,
+    placeholderData: [],
+  });
+}
+
+export function useAddDemandCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (card: Omit<DemandCard, "id">) => addDemandCardApi(card),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["demandCards"] }),
+  });
+}
+
+export function useUpdateDemandCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Omit<DemandCard, "id">> }) =>
+      updateDemandCardApi(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["demandCards"] }),
+  });
+}
+
+export function useDeleteDemandCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteDemandCardApi(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["demandCards"] }),
   });
 }

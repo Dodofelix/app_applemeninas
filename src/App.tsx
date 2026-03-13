@@ -14,6 +14,7 @@ import Clients from "./pages/admin/Clients";
 import Orders from "./pages/admin/Orders";
 import SettingsPage from "./pages/admin/SettingsPage";
 import Calculadora from "./pages/admin/Calculadora";
+import Demandas from "./pages/admin/Demandas";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/admin/produtos" element={<AdminRoute><Products /></AdminRoute>} />
             <Route path="/admin/pedidos" element={<AdminRoute><Orders /></AdminRoute>} />
             <Route path="/admin/calculadora" element={<AdminRoute><Calculadora /></AdminRoute>} />
+            <Route path="/admin/demandas" element={<AdminRoute><Demandas /></AdminRoute>} />
             <Route path="/admin/configuracoes" element={<AdminRoute><SettingsPage /></AdminRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

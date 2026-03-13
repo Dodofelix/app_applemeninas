@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, ShoppingCart, Calculator, Settings } from "lucide-react";
+import { LayoutDashboard, Users, Package, ShoppingCart, Calculator, LayoutList, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import logoApple from "@/assets/simbolo apple.png";
 import { useLocation } from "react-router-dom";
@@ -20,6 +20,7 @@ const items = [
   { title: "Produtos", url: "/admin/produtos", icon: Package },
   { title: "Pedidos", url: "/admin/pedidos", icon: ShoppingCart },
   { title: "Calculadora", url: "/admin/calculadora", icon: Calculator },
+  { title: "Demandas", url: "/admin/demandas", icon: LayoutList },
   { title: "Configurações", url: "/admin/configuracoes", icon: Settings },
 ];
 
