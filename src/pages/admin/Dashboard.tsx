@@ -1,11 +1,12 @@
-import { useState, useRef } from "react";
-import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank, Calendar } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useClients, useOrders, useExpenses, useAddExpense, useDeleteExpense, useDeleteOrder } from "@/hooks/useFirestore";
@@ -33,43 +34,108 @@ export default function Dashboard() {
   const lucroPorClienteRef = useRef<HTMLDivElement>(null);
 
   const now = new Date();
-  const year = now.getFullYear();
-  const monthStr = String(now.getMonth() + 1).padStart(2, "0");
-  const prefixMes = `${year}-${monthStr}`;
-  const faturamentoMes = orders
-    .filter((o) => (o.data || "").startsWith(prefixMes))
-    .reduce((acc, o) => acc + (o.valor || 0), 0);
-  const faturamentoAno = orders
-    .filter((o) => (o.data || "").startsWith(String(year)))
-    .reduce((acc, o) => acc + (o.valor || 0), 0);
-  const saidasMes = expenses
-    .filter((e) => (e.data || "").startsWith(prefixMes))
-    .reduce((acc, e) => acc + (e.valor || 0), 0);
+  const anoAtual = now.getFullYear();
+  const mesAtual = now.getMonth() + 1;
+  const [filtroAno, setFiltroAno] = useState<number>(anoAtual);
+  const [filtroMes, setFiltroMes] = useState<number>(mesAtual);
+  const [mostrarFiltroPeriodo, setMostrarFiltroPeriodo] = useState(false);
+
+  const prefixMes = useMemo(
+    () => `${filtroAno}-${String(filtroMes).padStart(2, "0")}`,
+    [filtroAno, filtroMes]
+  );
+
+  // Só contam como entrada pedidos cujo cliente está com status "pago" ou "pedido_concluido"
+  const clientesComPedidoPago = useMemo(
+    () =>
+      new Set(
+        clients
+          .filter((c) => c.status_pedido === "pago" || c.status_pedido === "pedido_concluido")
+          .map((c) => c.id)
+      ),
+    [clients]
+  );
+
+  const ordersNoPeriodo = useMemo(
+    () => orders.filter((o) => (o.data || "").startsWith(prefixMes)),
+    [orders, prefixMes]
+  );
+  const ordersNoPeriodoPagos = useMemo(
+    () => ordersNoPeriodo.filter((o) => clientesComPedidoPago.has(o.cliente_id)),
+    [ordersNoPeriodo, clientesComPedidoPago]
+  );
+  const expensesNoPeriodo = useMemo(
+    () => expenses.filter((e) => (e.data || "").startsWith(prefixMes)),
+    [expenses, prefixMes]
+  );
+
+  const faturamentoMes = useMemo(
+    () => ordersNoPeriodoPagos.reduce((acc, o) => acc + (o.valor || 0), 0),
+    [ordersNoPeriodoPagos]
+  );
+  const faturamentoAno = useMemo(
+    () =>
+      orders
+        .filter(
+          (o) =>
+            (o.data || "").startsWith(String(filtroAno)) && clientesComPedidoPago.has(o.cliente_id)
+        )
+        .reduce((acc, o) => acc + (o.valor || 0), 0),
+    [orders, filtroAno, clientesComPedidoPago]
+  );
+  const saidasMes = useMemo(
+    () => expensesNoPeriodo.reduce((acc, e) => acc + (e.valor || 0), 0),
+    [expensesNoPeriodo]
+  );
   const saldoMes = faturamentoMes - saidasMes;
   const loading = ordersLoading || clientsLoading || expensesLoading;
 
-  const movimentacoes: MovItem[] = [
-    ...orders.slice(0, 15).map((o) => ({
-      type: "entrada" as const,
-      id: o.id,
-      data: o.data || "",
-      descricao: `${o.cliente_nome} — ${o.produto}`,
-      valor: o.valor || 0,
-    })),
-    ...expenses.slice(0, 15).map((e) => ({
-      type: "saida" as const,
-      id: e.id,
-      data: e.data || "",
-      descricao: e.cliente_nome ? `${e.descricao} (${e.cliente_nome})` : e.descricao,
-      valor: e.valor || 0,
-    })),
-  ].sort((a, b) => (b.data || "").localeCompare(a.data || "")).slice(0, 15);
+  const movimentacoes: MovItem[] = useMemo(
+    () =>
+      [
+        ...ordersNoPeriodoPagos.map((o) => ({
+          type: "entrada" as const,
+          id: o.id,
+          data: o.data || "",
+          descricao: `${o.cliente_nome} — ${o.produto}`,
+          valor: o.valor || 0,
+        })),
+        ...expensesNoPeriodo.map((e) => ({
+          type: "saida" as const,
+          id: e.id,
+          data: e.data || "",
+          descricao: e.cliente_nome ? `${e.descricao} (${e.cliente_nome})` : e.descricao,
+          valor: e.valor || 0,
+        })),
+      ].sort((a, b) => (b.data || "").localeCompare(a.data || "")).slice(0, 15),
+    [ordersNoPeriodoPagos, expensesNoPeriodo]
+  );
+
+  const MESES: { value: number; label: string }[] = [
+    { value: 1, label: "Janeiro" },
+    { value: 2, label: "Fevereiro" },
+    { value: 3, label: "Março" },
+    { value: 4, label: "Abril" },
+    { value: 5, label: "Maio" },
+    { value: 6, label: "Junho" },
+    { value: 7, label: "Julho" },
+    { value: 8, label: "Agosto" },
+    { value: 9, label: "Setembro" },
+    { value: 10, label: "Outubro" },
+    { value: 11, label: "Novembro" },
+    { value: 12, label: "Dezembro" },
+  ];
+  const ANOS = useMemo(() => {
+    const list = [];
+    for (let y = anoAtual; y >= 2020; y--) list.push(y);
+    return list;
+  }, [anoAtual]);
 
   const handleAddSaida = async () => {
     const desc = descricaoSaida.trim();
     const val = parseFloat(valorSaida.replace(",", "."));
     if (!desc) {
-      toast.error("Informe a descrição da saída.");
+      toast.error("Informe o motivo da saída.");
       return;
     }
     if (Number.isNaN(val) || val <= 0) {
@@ -127,32 +193,99 @@ export default function Dashboard() {
     }
   };
 
-  const lucroPorCliente = clients.map((client) => {
-    const faturamento = orders
-      .filter((o) => o.cliente_id === client.id)
-      .reduce((acc, o) => acc + (o.valor || 0), 0);
-    const custos = expenses
-      .filter((e) => e.cliente_id === client.id)
-      .reduce((acc, e) => acc + (e.valor || 0), 0);
-    const lucro = faturamento - custos;
-    return { client, faturamento, custos, lucro };
-  }).filter((row) => row.faturamento > 0 || row.custos > 0).sort((a, b) => b.lucro - a.lucro);
+  const lucroPorCliente = useMemo(
+    () =>
+      clients
+        .map((client) => {
+          const faturamento = ordersNoPeriodoPagos
+            .filter((o) => o.cliente_id === client.id)
+            .reduce((acc, o) => acc + (o.valor || 0), 0);
+          const custos = expensesNoPeriodo
+            .filter((e) => e.cliente_id === client.id)
+            .reduce((acc, e) => acc + (e.valor || 0), 0);
+          const lucro = faturamento - custos;
+          return { client, faturamento, custos, lucro };
+        })
+        .filter((row) => row.faturamento > 0 || row.custos > 0)
+        .sort((a, b) => b.lucro - a.lucro),
+    [clients, ordersNoPeriodoPagos, expensesNoPeriodo]
+  );
 
   const totalLucroPositivo = lucroPorCliente.reduce((acc, r) => acc + (r.lucro > 0 ? r.lucro : 0), 0);
   const reserva = totalLucroPositivo * 0.1;
 
+  const clientesComPedidoNoPeriodo = useMemo(
+    () => new Set(ordersNoPeriodoPagos.map((o) => o.cliente_id).filter(Boolean)).size,
+    [ordersNoPeriodoPagos]
+  );
+
+  const nomeMesSelecionado = MESES.find((m) => m.value === filtroMes)?.label ?? "";
+  const periodoLabel = `${nomeMesSelecionado} ${filtroAno}`;
+
   return (
     <div className="space-y-6">
-      <div className="pb-2 border-b border-border/80">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Painel</h1>
-        <p className="text-muted-foreground text-sm mt-1">Visão geral do seu negócio</p>
+      <div className="pb-4 border-b border-border/80 space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Painel</h1>
+          <p className="text-muted-foreground text-sm mt-1">Visão geral do seu negócio</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant={mostrarFiltroPeriodo ? "secondary" : "outline"}
+            size="default"
+            className="gap-2"
+            onClick={() => setMostrarFiltroPeriodo((v) => !v)}
+          >
+            <Calendar className="h-4 w-4 shrink-0" />
+            {mostrarFiltroPeriodo ? "Ocultar filtro de período" : "Filtrar por mês e ano"}
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Período em exibição: <strong className="text-foreground">{periodoLabel}</strong>
+          </span>
+        </div>
+        {mostrarFiltroPeriodo && (
+          <div className="flex items-center gap-3 flex-wrap p-3 rounded-lg bg-muted/50 border border-border/80">
+            <Label className="text-sm font-medium shrink-0">Escolha o período:</Label>
+            <Select
+              value={String(filtroMes)}
+              onValueChange={(v) => setFiltroMes(Number(v))}
+            >
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                {MESES.map((m) => (
+                  <SelectItem key={m.value} value={String(m.value)}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(filtroAno)}
+              onValueChange={(v) => setFiltroAno(Number(v))}
+            >
+              <SelectTrigger className="w-[110px] h-9">
+                <SelectValue placeholder="Ano" />
+              </SelectTrigger>
+              <SelectContent>
+                {ANOS.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Total de Pedidos" value={loading ? "—" : orders.length} icon={ShoppingCart} />
-        <MetricCard title="Total de Clientes" value={loading ? "—" : clients.length} icon={Users} />
+        <MetricCard title="Pedidos no período (pagos)" value={loading ? "—" : ordersNoPeriodoPagos.length} icon={ShoppingCart} />
+        <MetricCard title="Clientes no período" value={loading ? "—" : clientesComPedidoNoPeriodo} icon={Users} />
         <MetricCard title="Faturamento do mês" value={loading ? "—" : formatCurrency(faturamentoMes)} icon={DollarSign} />
-        <MetricCard title="Faturamento do ano" value={loading ? "—" : formatCurrency(faturamentoAno)} icon={DollarSign} />
+        <MetricCard title={`Faturamento ${filtroAno}`} value={loading ? "—" : formatCurrency(faturamentoAno)} icon={DollarSign} />
       </div>
 
       <Card className="shadow-card">
@@ -163,7 +296,7 @@ export default function Dashboard() {
                 <Wallet className="h-5 w-5" />
                 Fluxo de Caixa
               </CardTitle>
-              <p className="text-sm text-muted-foreground mt-0.5">Resumo e últimas movimentações</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Resumo e últimas movimentações. Entradas só entram quando o status do pedido (em Clientes) for Pago ou Pedido concluído.</p>
             </div>
             <Button
               type="button"
@@ -219,11 +352,13 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Descrição</Label>
-                    <Input
+                    <Label>Motivo da saída (descrição) *</Label>
+                    <Textarea
                       value={descricaoSaida}
                       onChange={(e) => setDescricaoSaida(e.target.value)}
-                      placeholder="Ex: Fornecedor, aluguel..."
+                      placeholder="Ex: Pagamento ao fornecedor, aluguel, material de escritório..."
+                      rows={3}
+                      className="resize-none"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -259,7 +394,7 @@ export default function Dashboard() {
             <div className="rounded-lg border border-border/80 bg-emerald-500/10 p-4">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <TrendingUp className="h-4 w-4" />
-                <span className="text-xs font-medium uppercase tracking-wide">Entradas (mês)</span>
+                <span className="text-xs font-medium uppercase tracking-wide">Entradas (período)</span>
               </div>
               <p className="mt-1 text-xl font-bold text-foreground">
                 {loading ? "—" : formatCurrency(faturamentoMes)}
@@ -268,7 +403,7 @@ export default function Dashboard() {
             <div className="rounded-lg border border-border/80 bg-red-500/10 p-4">
               <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
                 <TrendingDown className="h-4 w-4" />
-                <span className="text-xs font-medium uppercase tracking-wide">Saídas (mês)</span>
+                <span className="text-xs font-medium uppercase tracking-wide">Saídas (período)</span>
               </div>
               <p className="mt-1 text-xl font-bold text-foreground">
                 {loading ? "—" : formatCurrency(saidasMes)}
@@ -277,7 +412,7 @@ export default function Dashboard() {
             <div className="rounded-lg border border-border/80 bg-primary/10 p-4">
               <div className="flex items-center gap-2 text-primary">
                 <Wallet className="h-4 w-4" />
-                <span className="text-xs font-medium uppercase tracking-wide">Saldo (mês)</span>
+                <span className="text-xs font-medium uppercase tracking-wide">Saldo (período)</span>
               </div>
               <p className="mt-1 text-xl font-bold text-foreground">
                 {loading ? "—" : formatCurrency(saldoMes)}
@@ -298,7 +433,7 @@ export default function Dashboard() {
           </div>
 
           <div>
-            <h3 className="text-sm font-medium mb-3">Movimentações recentes</h3>
+            <h3 className="text-sm font-medium mb-3">Movimentações do período</h3>
             <div className="hidden md:block overflow-x-auto rounded-lg border border-border/80">
               <Table className="min-w-[400px]">
                 <TableHeader>
@@ -415,7 +550,7 @@ export default function Dashboard() {
             Lucro por cliente
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Faturamento (pedidos) menos saídas vinculadas ao cliente (ex.: pagamento a fornecedor). Vincule a saída ao cliente ao registrar.
+            Faturamento (pedidos) menos saídas vinculadas ao cliente no período selecionado (ex.: pagamento a fornecedor). Vincule a saída ao cliente ao registrar.
           </p>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">

@@ -315,6 +315,7 @@ export interface DemandCard {
   title: string;
   responsible: string;
   dueDate: string;
+  descricao?: string;
 }
 
 export async function getDemandColumns(): Promise<DemandColumn[]> {
@@ -358,6 +359,7 @@ export async function addDemandCard(card: Omit<DemandCard, "id">): Promise<strin
     title: String(card.title ?? "").trim(),
     responsible: String(card.responsible ?? "").trim(),
     dueDate: String(card.dueDate ?? "").trim(),
+    descricao: card.descricao ? String(card.descricao).trim() : "",
   };
   const ref = await addDoc(collection(db, DEMAND_CARDS), data);
   return ref.id;
@@ -370,6 +372,7 @@ export async function updateDemandCard(id: string, data: Partial<Omit<DemandCard
   if (data.title !== undefined) clean.title = String(data.title).trim();
   if (data.responsible !== undefined) clean.responsible = String(data.responsible).trim();
   if (data.dueDate !== undefined) clean.dueDate = String(data.dueDate).trim();
+  if (data.descricao !== undefined) clean.descricao = String(data.descricao).trim();
   if (Object.keys(clean).length > 0) {
     await setDoc(doc(db, DEMAND_CARDS, id), clean, { merge: true });
   }

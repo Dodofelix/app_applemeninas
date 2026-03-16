@@ -1,4 +1,11 @@
-import { useCallback, useState } from "react";
+          <p className="font-medium text-sm leading-tight break-words">{card.title || "Sem título"}</p>
+          {card.descricao && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2 break-words">{card.descricao}</p>
+          )}    setEditingCard(card);
+    setEditCardTitle(card.title);
+    setEditCardResponsible(card.responsible);
+    setEditCardDueDate(card.dueDate || "");
+    setEditCardDescricao(card.descricao || "");import { useCallback, useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -17,6 +24,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Plus, GripVertical, Pencil, Trash2, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -334,6 +342,7 @@ export default function Demandas() {
     setNewCardTitle("");
     setNewCardResponsible("");
     setNewCardDueDate("");
+    setNewCardDescricao("");
   };
 
   const handleAddCard = async () => {
@@ -352,6 +361,7 @@ export default function Demandas() {
         title,
         responsible: newCardResponsible.trim(),
         dueDate: newCardDueDate.trim(),
+        descricao: newCardDescricao.trim(),
       });
       setAddCardColumnId(null);
       toast.success("Demanda adicionada.");
@@ -382,6 +392,7 @@ export default function Demandas() {
           title,
           responsible: editCardResponsible.trim(),
           dueDate: editCardDueDate.trim(),
+          descricao: editCardDescricao.trim(),
         },
       });
       setEditCardOpen(false);
@@ -468,8 +479,13 @@ export default function Demandas() {
         <DragOverlay>
           {activeCard ? (
             <Card className="w-[260px] cursor-grabbing shadow-lg ring-2 ring-primary/20 opacity-95">
-              <CardContent className="p-3">
+              <CardContent className="p-3 space-y-1">
                 <p className="font-medium text-sm">{activeCard.title || "Sem título"}</p>
+                {activeCard.descricao && (
+                  <p className="text-xs text-muted-foreground line-clamp-2 break-words">
+                    {activeCard.descricao}
+                  </p>
+                )}
                 {activeCard.responsible && (
                   <p className="text-xs text-muted-foreground mt-1">Responsável: {activeCard.responsible}</p>
                 )}
@@ -528,6 +544,17 @@ export default function Demandas() {
                 type="date"
                 value={newCardDueDate}
                 onChange={(e) => setNewCardDueDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-card-notes">Anotações / o que precisa ser feito</Label>
+              <Textarea
+                id="new-card-notes"
+                value={newCardDescricao}
+                onChange={(e) => setNewCardDescricao(e.target.value)}
+                placeholder="Descreva as etapas, links importantes, contexto da demanda..."
+                rows={3}
+                className="resize-none"
               />
             </div>
           </div>
@@ -594,6 +621,17 @@ export default function Demandas() {
                 type="date"
                 value={editCardDueDate}
                 onChange={(e) => setEditCardDueDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-card-notes">Anotações / o que precisa ser feito</Label>
+              <Textarea
+                id="edit-card-notes"
+                value={editCardDescricao}
+                onChange={(e) => setEditCardDescricao(e.target.value)}
+                placeholder="Atualize as anotações e próximos passos desta demanda..."
+                rows={3}
+                className="resize-none"
               />
             </div>
           </div>
