@@ -6,6 +6,7 @@ import {
   setProduct as setProductApi,
   deleteProduct as deleteProductApi,
   getClients,
+  addClient,
   getOrders,
   addOrder as addOrderApi,
   getGatewayFees,
@@ -31,7 +32,7 @@ import {
   updateDemandCard as updateDemandCardApi,
   deleteDemandCard as deleteDemandCardApi,
 } from "@/lib/firestore";
-import type { GatewayFees, StatusPedido, CalculatorValues, UserProfile, DemandColumn, DemandCard } from "@/lib/firestore";
+import type { GatewayFees, StatusPedido, CalculatorValues, UserProfile, DemandColumn, DemandCard, Client } from "@/lib/firestore";
 import type { Expense } from "@/lib/firestore";
 import type { Product, Order } from "@/lib/mock-data";
 
@@ -80,6 +81,14 @@ export function useClients() {
     queryKey: ["clients"],
     queryFn: getClients,
     placeholderData: [],
+  });
+}
+
+export function useAddClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (client: Omit<Client, "id">) => addClient(client),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["clients"] }),
   });
 }
 

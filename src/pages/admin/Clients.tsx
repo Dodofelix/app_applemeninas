@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useClients, useOrders, useDeleteClient, useUpdateClientStatusPedido, useUpdateClientNotaFiscal } from "@/hooks/useFirestore";
+import { useClients, useOrders, useAddClient, useDeleteClient, useUpdateClientStatusPedido, useUpdateClientNotaFiscal } from "@/hooks/useFirestore";
 import { formatDate, formatCurrency } from "@/lib/mock-data";
 import { buildFormularioNF } from "@/lib/formularioNF";
 import type { Client, Order, StatusPedidoCliente, StatusNotaFiscal } from "@/lib/mock-data";
@@ -133,8 +133,16 @@ function DetalheCliente({ c, orders }: { c: Client; orders: Order[] }) {
 export default function Clients() {
   const { data: clients = [], isLoading } = useClients();
   const { data: orders = [] } = useOrders();
+  const addClient = useAddClient();
   const [clientToView, setClientToView] = useState<Client | null>(null);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [novoNome, setNovoNome] = useState("");
+  const [novoCpf, setNovoCpf] = useState("");
+  const [novoCelular, setNovoCelular] = useState("");
+  const [novoEmail, setNovoEmail] = useState("");
+  const [novoCidade, setNovoCidade] = useState("");
+  const [novoEstado, setNovoEstado] = useState("");
   const deleteClient = useDeleteClient();
   const updateStatusPedido = useUpdateClientStatusPedido();
   const updateNotaFiscal = useUpdateClientNotaFiscal();
@@ -172,11 +180,61 @@ export default function Clients() {
     }
   };
 
+  const handleAddClient = async () => {
+    const nome = novoNome.trim();
+    const cpf = novoCpf.trim();
+    if (!nome || !cpf) {
+      toast.error("Preencha pelo menos nome e CPF.");
+      return;
+    }
+    const hoje = new Date().toISOString().slice(0, 10);
+    try {
+      await addClient.mutateAsync({
+        nome,
+        cpf,
+        rg: "",
+        data_nascimento: "",
+        nacionalidade: "",
+        estado_civil: "",
+        profissao: "",
+        celular: novoCelular.trim(),
+        email: novoEmail.trim(),
+        cep: "",
+        rua: "",
+        numero: "",
+        complemento: "",
+        bairro: "",
+        cidade: novoCidade.trim(),
+        estado: novoEstado.trim(),
+        autoriza_instagram: false,
+        data_cadastro: hoje,
+        status_pedido: undefined,
+        nota_fiscal: undefined,
+      });
+      setNovoNome("");
+      setNovoCpf("");
+      setNovoCelular("");
+      setNovoEmail("");
+      setNovoCidade("");
+      setNovoEstado("");
+      setAddOpen(false);
+      toast.success("Cliente adicionado manualmente.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao adicionar cliente.";
+      toast.error(msg);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="pb-2 border-b border-border/80">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Clientes</h1>
-        <p className="text-muted-foreground text-sm mt-1">Todos os clientes cadastrados</p>
+      <div className="pb-2 border-b border-border/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Clientes</h1>
+          <p className="text-muted-foreground text-sm mt-1">Todos os clientes cadastrados</p>
+        </div>
+        <Button size="sm" className="shrink-0" onClick={() => setAddOpen(true)}>
+          + Adicionar cliente
+        </Button>
       </div>
 
       <Card className="shadow-card">
@@ -408,6 +466,85 @@ export default function Clients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar cliente manualmente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                Use este atalho para cadastrar rapidamente um cliente sem precisar do formulário público.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Nome *</label>
+              <input
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">CPF *</label>
+              <input
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={novoCpf}
+                onChange={(e) => setNovoCpf(e.target.value)}
+                placeholder="000.000.000-00"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Celular</label>
+                <input
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={novoCelular}
+                  onChange={(e) => setNovoCelular(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Email</label>
+                <input
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  type="email"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Cidade</label>
+                <input
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={novoCidade}
+                  onChange={(e) => setNovoCidade(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Estado</label>
+                <input
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={novoEstado}
+                  onChange={(e) => setNovoEstado(e.target.value)}
+                  placeholder="SP, RJ..."
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAddClient} disabled={addClient.isPending}>
+              {addClient.isPending ? "Salvando..." : "Salvar cliente"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
