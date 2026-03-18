@@ -408,7 +408,7 @@ export default function Dashboard() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0">
                 <div className="p-4 sm:p-6">
-                  <PublicOrderForm embedded onSuccess={handleEntradaSuccess} />
+                  {openEntrada ? <PublicOrderForm embedded onSuccess={handleEntradaSuccess} /> : null}
                 </div>
               </DialogContent>
             </Dialog>
