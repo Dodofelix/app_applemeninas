@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
 import { useClients, useOrders, useExpenses, useAddExpense, useDeleteExpense, useDeleteOrder } from "@/hooks/useFirestore";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
+import PublicOrderForm from "@/pages/PublicOrderForm";
 import { toast } from "sonner";
 
 type MovItem =
@@ -25,7 +27,9 @@ export default function Dashboard() {
   const deleteExpense = useDeleteExpense();
   const deleteOrder = useDeleteOrder();
 
+  const queryClient = useQueryClient();
   const [openSaida, setOpenSaida] = useState(false);
+  const [openEntrada, setOpenEntrada] = useState(false);
   const [descricaoSaida, setDescricaoSaida] = useState("");
   const [valorSaida, setValorSaida] = useState("");
   const [dataSaida, setDataSaida] = useState(() => new Date().toISOString().slice(0, 10));
@@ -171,6 +175,13 @@ export default function Dashboard() {
         toast.error(msg || "Erro ao registrar saída.");
       }
     }
+  };
+
+  const handleEntradaSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    queryClient.invalidateQueries({ queryKey: ["clients"] });
+    setOpenEntrada(false);
+    toast.success("Entrada adicionada ao painel.");
   };
 
   const handleDeleteSaida = async (id: string) => {
@@ -384,6 +395,20 @@ export default function Dashboard() {
                   <Button onClick={handleAddSaida} className="w-full" disabled={addExpense.isPending}>
                     {addExpense.isPending ? "Salvando..." : "Registrar saída"}
                   </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={openEntrada} onOpenChange={setOpenEntrada}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="shrink-0" variant="secondary">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar entrada
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+                <div className="p-4 sm:p-6">
+                  <PublicOrderForm embedded onSuccess={handleEntradaSuccess} />
                 </div>
               </DialogContent>
             </Dialog>

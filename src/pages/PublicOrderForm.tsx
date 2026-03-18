@@ -59,7 +59,13 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
 
 const DEFAULT_FEE_PCT = 2.99;
 
-export default function PublicOrderForm() {
+export default function PublicOrderForm({
+  onSuccess,
+  embedded,
+}: {
+  onSuccess?: () => void;
+  embedded?: boolean;
+}) {
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
   const [nacionalidade, setNacionalidade] = useState("");
@@ -199,6 +205,7 @@ export default function PublicOrderForm() {
         orderPayload.valor_parcela_cartao2 = valorParcelaCartao2;
       }
       await addOrder(orderPayload);
+      onSuccess?.();
 
       const tipoPagamento =
         formaPagamento === "Pix total"
@@ -298,7 +305,13 @@ export default function PublicOrderForm() {
   );
 
   return (
-    <div className="min-h-screen min-h-dvh bg-muted/40 py-6 px-3 sm:py-10 sm:px-4">
+    <div
+      className={
+        embedded
+          ? "w-full min-h-0 bg-transparent py-0 px-0"
+          : "min-h-screen min-h-dvh bg-muted/40 py-6 px-3 sm:py-10 sm:px-4"
+      }
+    >
       <div className="max-w-xl mx-auto space-y-4 sm:space-y-5 w-full min-w-0">
         {/* Header */}
         <div className="text-center space-y-3 pb-2">
