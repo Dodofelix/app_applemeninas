@@ -166,7 +166,7 @@ export default function Dashboard() {
   ];
   const ANOS = useMemo(() => {
     const list = [];
-    for (let y = anoAtual; y >= 2020; y--) list.push(y);
+    for (let y = anoAtual; y <= 2030; y++) list.push(y);
     return list;
   }, [anoAtual]);
 
