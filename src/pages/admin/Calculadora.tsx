@@ -13,7 +13,6 @@ import {
 import { useProducts, useGatewayFees, useCalculatorValues } from "@/hooks/useFirestore";
 import {
   CLIENT_MODELS,
-  STORE_MODELS,
   STORAGES,
   calculatorKey,
 } from "@/lib/calculadora";
@@ -25,18 +24,8 @@ import {
   Store,
   CreditCard,
   Package,
-  QrCode,
-  Wallet,
-  Layers,
   ArrowLeftRight,
 } from "lucide-react";
-
-const PAYMENT_METHODS: { value: string; label: string; Icon: typeof QrCode }[] = [
-  { value: "Pix total", label: "Pix total", Icon: QrCode },
-  { value: "Pix entrada + cartão de crédito", label: "Pix entrada + cartão de crédito", Icon: Wallet },
-  { value: "Cartão de crédito total", label: "Cartão de crédito total", Icon: CreditCard },
-  { value: "2 cartões de crédito", label: "2 cartões de crédito", Icon: Layers },
-];
 
 const CATEGORY_ICONS: Record<string, typeof Package> = {
   iPhone: Smartphone,
@@ -59,31 +48,30 @@ export default function Calculadora() {
   const [clientModel, setClientModel] = useState<string>("");
   const [clientStorage, setClientStorage] = useState<number | "">("");
 
-  const [storeModel, setStoreModel] = useState<string>("");
-  const [storeStorage, setStoreStorage] = useState<number | "">("");
+  const [storeProductId, setStoreProductId] = useState<string>("");
 
   type ItemProduto = { categoria: string; produtoId: string };
   const [itensProduto, setItensProduto] = useState<ItemProduto[]>([{ categoria: "", produtoId: "" }]);
-  const [formaPagamento, setFormaPagamento] = useState("");
-  const [entradaPix, setEntradaPix] = useState("");
-  const [parcelas, setParcelas] = useState("");
-  const [valorCartao1, setValorCartao1] = useState("");
-  const [parcelasCartao1, setParcelasCartao1] = useState("");
-  const [parcelasCartao2, setParcelasCartao2] = useState("");
   const [nomeClienteOrcamento, setNomeClienteOrcamento] = useState("");
   const [nomeClienteUpgrade, setNomeClienteUpgrade] = useState("");
   const [parcelasUpgrade, setParcelasUpgrade] = useState("12");
+  const [parcelasOrcamento, setParcelasOrcamento] = useState("12");
+  const [tipoPagamentoOrcamento, setTipoPagamentoOrcamento] = useState<"pix_total" | "pix_entrada_cartao">(
+    "pix_total",
+  );
+  const [entradaPixOrcamento, setEntradaPixOrcamento] = useState("");
 
   const clientKey = clientModel && clientStorage ? calculatorKey(clientModel, clientStorage as number) : "";
-  const storeKey = storeModel && storeStorage ? calculatorKey(storeModel, storeStorage as number) : "";
 
   const clientValue = useMemo(() => {
     return clientKey ? (savedValues.tradeIn[clientKey] ?? 0) : 0;
   }, [clientKey, savedValues.tradeIn]);
 
-  const storeValue = useMemo(() => {
-    return storeKey ? savedValues.store[storeKey] ?? 0 : 0;
-  }, [storeKey, savedValues.store]);
+  const storeProduct = useMemo(
+    () => (storeProductId ? products.find((p) => p.id === storeProductId) : undefined),
+    [products, storeProductId],
+  );
+  const storeValue = storeProduct?.preco ?? 0;
 
   const valorUpgrade = storeValue - clientValue;
 
@@ -97,32 +85,15 @@ export default function Calculadora() {
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
   const valorTotal = produtoObjs.reduce((s, p) => s + p.preco, 0);
 
-  const needsInstallments =
-    formaPagamento === "Pix entrada + cartão de crédito" ||
-    formaPagamento === "Cartão de crédito total" ||
-    formaPagamento === "2 cartões de crédito";
-
-  const valorRestante =
-    formaPagamento === "Pix entrada + cartão de crédito" && valorTotal > 0
-      ? valorTotal - (parseFloat(entradaPix) || 0)
+  const numParcelasOrcamento = parseInt(parcelasOrcamento) || 1;
+  const feeParcelasOrcamento = getFeeForParcelas(numParcelasOrcamento);
+  const entradaPixOrcamentoNum = parseFloat(String(entradaPixOrcamento || "").replace(",", ".")) || 0;
+  const restanteOrcamento =
+    tipoPagamentoOrcamento === "pix_entrada_cartao" && valorTotal > 0
+      ? Math.max(0, valorTotal - entradaPixOrcamentoNum)
       : valorTotal;
-
-  const isDoisCartoes = formaPagamento === "2 cartões de crédito";
-  const valorCartao1Num = isDoisCartoes && valorTotal > 0 ? parseFloat(valorCartao1) || 0 : 0;
-  const valorCartao2Num = isDoisCartoes && valorTotal > 0 ? valorTotal - valorCartao1Num : 0;
-  const numParcelasCartao1 = parseInt(parcelasCartao1) || 1;
-  const numParcelasCartao2 = parseInt(parcelasCartao2) || 1;
-  const feeCartao1 = getFeeForParcelas(numParcelasCartao1);
-  const feeCartao2 = getFeeForParcelas(numParcelasCartao2);
-  const valorParcelaCartao1 =
-    isDoisCartoes && valorCartao1Num > 0 ? (valorCartao1Num * (1 + feeCartao1)) / numParcelasCartao1 : 0;
-  const valorParcelaCartao2 =
-    isDoisCartoes && valorCartao2Num > 0 ? (valorCartao2Num * (1 + feeCartao2)) / numParcelasCartao2 : 0;
-
-  const numParcelas = parseInt(parcelas) || 1;
-  const feeParcelas = getFeeForParcelas(numParcelas);
-  const valorParcela =
-    needsInstallments && !isDoisCartoes ? (valorRestante * (1 + feeParcelas)) / numParcelas : 0;
+  const valorParcelaOrcamento =
+    restanteOrcamento > 0 ? (restanteOrcamento * (1 + feeParcelasOrcamento)) / numParcelasOrcamento : 0;
 
   const handleCopyUpgrade = async () => {
     if (!nomeClienteUpgrade.trim()) {
@@ -168,35 +139,12 @@ export default function Calculadora() {
       return;
     }
 
-    const linhasProdutos = produtoObjs.map(
-      (p) => `- ${p.nome} (${p.categoria}) - ${formatCurrency(p.preco)}`,
-    );
+    const linhasProdutos = produtoObjs.map((p) => `- ${p.nome}`);
 
-    let formaTexto = formaPagamento || "Não informado";
-    if (formaPagamento === "Pix total") {
-      formaTexto = `Pix total - ${formatCurrency(valorTotal)}`;
-    } else if (formaPagamento === "Pix entrada + cartão de crédito") {
-      formaTexto = `Pix entrada de ${formatCurrency(parseFloat(entradaPix) || 0)} + restante no cartão`;
-      if (parcelas) {
-        formaTexto += ` em ${parcelas}x de ${formatCurrency(valorParcela)}`;
-      }
-    } else if (formaPagamento === "Cartão de crédito total") {
-      if (parcelas) {
-        formaTexto = `Cartão de crédito total em ${parcelas}x de ${formatCurrency(valorParcela)}`;
-      } else {
-        formaTexto = `Cartão de crédito total - ${formatCurrency(valorTotal)}`;
-      }
-    } else if (formaPagamento === "2 cartões de crédito") {
-      formaTexto = `2 cartões:\n  1º cartão: ${
-        parcelasCartao1
-          ? `${parcelasCartao1}x de ${formatCurrency(valorParcelaCartao1)}`
-          : formatCurrency(valorCartao1Num)
-      }\n  2º cartão: ${
-        parcelasCartao2
-          ? `${parcelasCartao2}x de ${formatCurrency(valorParcelaCartao2)}`
-          : formatCurrency(valorCartao2Num)
-      }`;
-    }
+    const formaTexto =
+      tipoPagamentoOrcamento === "pix_entrada_cartao"
+        ? `Valor total produto: ${formatCurrency(valorTotal)}\nEntrada Pix - ${formatCurrency(entradaPixOrcamentoNum)}\nParcelamento - ${numParcelasOrcamento}x de ${formatCurrency(valorParcelaOrcamento)}`
+        : `Pix total - ${formatCurrency(valorTotal)}\nParcelamento - ${numParcelasOrcamento}x de ${formatCurrency(valorParcelaOrcamento)}`;
 
     const texto = `Orçamento ${nomeClienteOrcamento.trim()}\n\nProdutos:\n${linhasProdutos.join(
       "\n",
@@ -311,35 +259,19 @@ export default function Calculadora() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Modelo</Label>
-                  <Select value={storeModel} onValueChange={setStoreModel}>
+                  <Label>iPhone (catálogo)</Label>
+                  <Select value={storeProductId} onValueChange={setStoreProductId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o modelo" />
+                      <SelectValue placeholder="Selecione o iPhone" />
                     </SelectTrigger>
                     <SelectContent>
-                      {STORE_MODELS.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Memória</Label>
-                  <Select
-                    value={storeStorage === "" ? "" : String(storeStorage)}
-                    onValueChange={(v) => setStoreStorage(v === "" ? "" : Number(v))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a memória" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STORAGES.map((s) => (
-                        <SelectItem key={s.value} value={String(s.value)}>
-                          {s.label}
-                        </SelectItem>
-                      ))}
+                      {products
+                        .filter((p) => p.categoria === "iPhone")
+                        .map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nome} — {formatCurrency(p.preco)}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -349,19 +281,12 @@ export default function Calculadora() {
                     type="text"
                     readOnly
                     value={
-                      storeKey && savedValues.store[storeKey] != null
-                        ? savedValues.store[storeKey].toLocaleString("pt-BR", {
-                            style: "currency",
-                            currency: "BRL",
-                          })
-                        : ""
+                      storeProduct ? formatCurrency(storeProduct.preco) : ""
                     }
-                    placeholder={storeKey ? "Cadastre este valor em Configurações › Dados da calculadora" : "Selecione modelo e memória"}
+                    placeholder="Selecione um iPhone do catálogo"
                   />
-                  {storeKey && savedValues.store[storeKey] == null && (
-                    <p className="text-xs text-muted-foreground">
-                      Nenhum valor cadastrado para este modelo/memória. Ajuste em Configurações &gt; Dados da calculadora.
-                    </p>
+                  {storeProductId && !storeProduct && (
+                    <p className="text-xs text-muted-foreground">Produto não encontrado no catálogo.</p>
                   )}
                 </div>
               </CardContent>
@@ -565,125 +490,59 @@ export default function Calculadora() {
 
               <div className="space-y-2">
                 <Label>Forma de pagamento</Label>
-                <Select value={formaPagamento} onValueChange={setFormaPagamento}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a forma de pagamento" />
+                <Select
+                  value={tipoPagamentoOrcamento}
+                  onValueChange={(v) => setTipoPagamentoOrcamento(v as "pix_total" | "pix_entrada_cartao")}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PAYMENT_METHODS.map(({ value, label, Icon }) => (
-                      <SelectItem key={value} value={value}>
-                        <span className="flex items-center gap-2">
-                          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          {label}
-                        </span>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="pix_total">Pix à vista</SelectItem>
+                    <SelectItem value="pix_entrada_cartao">Entrada Pix + Cartão</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              {formaPagamento === "Pix entrada + cartão de crédito" && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Valor de entrada via Pix (R$)</Label>
-                  <Input
-                    type="number"
-                    value={entradaPix}
-                    onChange={(e) => setEntradaPix(e.target.value)}
-                    placeholder="0"
-                  />
-                  {valorTotal > 0 && entradaPix && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Restante no cartão: {formatCurrency(valorRestante)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {formaPagamento === "2 cartões de crédito" && valorTotal > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1.5 p-3 rounded-lg border bg-muted/30">
-                    <Label className="text-sm font-medium">1º cartão</Label>
-                    <Input
-                      type="number"
-                      placeholder="Valor (R$)"
-                      value={valorCartao1}
-                      onChange={(e) => setValorCartao1(e.target.value)}
-                    />
-                    {valorCartao1 && (
-                      <p className="text-xs text-muted-foreground">
-                        2º cartão: {formatCurrency(valorTotal - (parseFloat(valorCartao1) || 0))}
-                      </p>
-                    )}
-                    <Select value={parcelasCartao1} onValueChange={setParcelasCartao1}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Parcelas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-                          <SelectItem key={n} value={String(n)}>
-                            {n}x de{" "}
-                            {formatCurrency(
-                              valorCartao1Num > 0 ? (valorCartao1Num * (1 + getFeeForParcelas(n))) / n : 0,
-                            )}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {parcelasCartao1 && valorCartao1Num > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        {parcelasCartao1}x de {formatCurrency(valorParcelaCartao1)} (taxa{" "}
-                        {(getFeeForParcelas(numParcelasCartao1) * 100).toFixed(2)}%)
-                      </p>
-                    )}
+                    <p className="text-sm font-medium">Pix à vista</p>
+                    <p className="text-sm text-muted-foreground">
+                      Pix total - <span className="font-medium text-foreground">{formatCurrency(valorTotal)}</span>
+                    </p>
                   </div>
                   <div className="space-y-1.5 p-3 rounded-lg border bg-muted/30">
-                    <Label className="text-sm font-medium">2º cartão</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Valor: {formatCurrency(valorCartao2Num)}
-                    </p>
-                    <Select value={parcelasCartao2} onValueChange={setParcelasCartao2}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Parcelas" />
+                    <Label className="text-sm font-medium">Parcelamento (1–12x)</Label>
+                    <Select value={parcelasOrcamento} onValueChange={setParcelasOrcamento}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
                         {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
                           <SelectItem key={n} value={String(n)}>
-                            {n}x de{" "}
-                            {formatCurrency(
-                              valorCartao2Num > 0 ? (valorCartao2Num * (1 + getFeeForParcelas(n))) / n : 0,
-                            )}
+                            {n}x de {formatCurrency(restanteOrcamento > 0 ? (restanteOrcamento * (1 + getFeeForParcelas(n))) / n : 0)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {parcelasCartao2 && valorCartao2Num > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        {parcelasCartao2}x de {formatCurrency(valorParcelaCartao2)} (taxa{" "}
-                        {(getFeeForParcelas(numParcelasCartao2) * 100).toFixed(2)}%)
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Taxa do gateway: {(feeParcelasOrcamento * 100).toFixed(2)}%
+                    </p>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {needsInstallments && !isDoisCartoes && valorTotal > 0 && (
+              {tipoPagamentoOrcamento === "pix_entrada_cartao" && (
                 <div className="space-y-1.5">
-                  <Label className="text-sm">Parcelas</Label>
-                  <Select value={parcelas} onValueChange={setParcelas}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-                        <SelectItem key={n} value={String(n)}>
-                          {n}x de {formatCurrency((valorRestante * (1 + getFeeForParcelas(n))) / n)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {parcelas && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {parcelas}x de {formatCurrency(valorParcela)} (taxa de {(feeParcelas * 100).toFixed(2)}%)
+                  <Label className="text-sm">Entrada Pix (R$)</Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={entradaPixOrcamento}
+                    onChange={(e) => setEntradaPixOrcamento(e.target.value)}
+                    placeholder="0,00"
+                  />
+                  {valorTotal > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Restante no cartão: <span className="font-medium text-foreground">{formatCurrency(restanteOrcamento)}</span>
                     </p>
                   )}
                 </div>

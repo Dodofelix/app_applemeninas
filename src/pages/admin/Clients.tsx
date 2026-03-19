@@ -47,6 +47,12 @@ function notaFiscalLabel(value: StatusNotaFiscal | undefined): string {
   return NOTA_FISCAL_OPTIONS.find((o) => o.value === value)?.label ?? "—";
 }
 
+function getFirstName(nome: string): string {
+  const s = (nome || "").trim().replace(/\s+/g, " ");
+  if (!s) return "";
+  return s.split(" ")[0] || s;
+}
+
 function DetalheCliente({ c, orders }: { c: Client; orders: Order[] }) {
   const linha = (label: string, value: string | number | undefined) =>
     value !== undefined && value !== "" ? (
@@ -276,11 +282,24 @@ export default function Clients() {
               ) : (
                 clients.map((c) => (
                   <TableRow key={c.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell className="font-medium text-sm">{c.nome}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{c.cpf}</TableCell>
-                    <TableCell className="text-sm">{c.celular}</TableCell>
-                    <TableCell className="text-sm">{c.email}</TableCell>
-                    <TableCell className="text-sm">{c.cidade} - {c.estado}</TableCell>
+                    <TableCell className="font-medium text-sm py-2 px-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="truncate">{getFirstName(c.nome) || c.nome}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0"
+                          title="Visualizar completo"
+                          onClick={() => setClientToView(c)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground py-2 px-3">{c.cpf}</TableCell>
+                    <TableCell className="text-sm py-2 px-3">{c.celular}</TableCell>
+                    <TableCell className="text-sm py-2 px-3">{c.email}</TableCell>
+                    <TableCell className="text-sm py-2 px-3">{c.cidade} - {c.estado}</TableCell>
                     <TableCell>
                       <Select
                         value={c.status_pedido ?? "aguardando_produto"}
@@ -299,7 +318,7 @@ export default function Clients() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="p-2">
                       <Button
                         size="icon"
                         variant="ghost"
@@ -327,17 +346,9 @@ export default function Clients() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(c.data_cadastro)}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1 items-center">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          title="Visualizar"
-                          onClick={() => setClientToView(c)}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
+                    <TableCell className="text-sm text-muted-foreground py-2 px-3">{formatDate(c.data_cadastro)}</TableCell>
+                    <TableCell className="p-2">
+                      <div className="flex items-center gap-1">
                         <Button
                           size="icon"
                           variant="ghost"
@@ -363,11 +374,26 @@ export default function Clients() {
             {!isLoading && clients.length > 0 && clients.map((c) => (
               <Card key={c.id} className="border bg-card p-4 shadow-sm">
                 <div className="space-y-2 text-sm">
-                  <p><span className="text-muted-foreground">Nome:</span> <span className="font-medium">{c.nome}</span></p>
-                  <p><span className="text-muted-foreground">CPF:</span> {c.cpf}</p>
-                  <p><span className="text-muted-foreground">Celular:</span> {c.celular}</p>
-                  <p><span className="text-muted-foreground">Email:</span> {c.email}</p>
-                  <p><span className="text-muted-foreground">Cidade:</span> {c.cidade} – {c.estado}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate">
+                        <span className="text-muted-foreground">Nome:</span>{" "}
+                        <span className="font-medium">{getFirstName(c.nome) || c.nome}</span>
+                      </p>
+                      <p className="text-muted-foreground text-xs mt-0.5 truncate">
+                        {c.cidade} - {c.estado}
+                      </p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      title="Visualizar completo"
+                      onClick={() => setClientToView(c)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <div>
                     <span className="text-muted-foreground block mb-1">Status do pedido</span>
                     <Select
@@ -414,10 +440,6 @@ export default function Clients() {
                   </div>
                   <p><span className="text-muted-foreground">Cadastro:</span> {formatDate(c.data_cadastro)}</p>
                   <div className="flex flex-wrap gap-2 pt-3 border-t">
-                    <Button size="sm" variant="outline" onClick={() => setClientToView(c)}>
-                      <Eye className="h-4 w-4" />
-                      <span className="ml-1.5">Visualizar</span>
-                    </Button>
                     <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setClientToDelete(c)} disabled={deleteClient.isPending}>
                       <Trash2 className="h-4 w-4" />
                       <span className="ml-1.5">Excluir</span>

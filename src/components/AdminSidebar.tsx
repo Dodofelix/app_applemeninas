@@ -16,11 +16,11 @@ import {
 
 const items = [
   { title: "Painel", url: "/admin", icon: LayoutDashboard },
-  { title: "Clientes", url: "/admin/clientes", icon: Users },
-  { title: "Produtos", url: "/admin/produtos", icon: Package },
   { title: "Pedidos", url: "/admin/pedidos", icon: ShoppingCart },
   { title: "Calculadora", url: "/admin/calculadora", icon: Calculator },
+  { title: "Clientes", url: "/admin/clientes", icon: Users },
   { title: "Demandas", url: "/admin/demandas", icon: LayoutList },
+  { title: "Produtos", url: "/admin/produtos", icon: Package },
   { title: "Configurações", url: "/admin/configuracoes", icon: Settings },
 ];
 

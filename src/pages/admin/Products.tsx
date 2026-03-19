@@ -25,11 +25,13 @@ export default function Products() {
   const [nome, setNome] = useState("");
   const [categoria, setCategoria] = useState("");
   const [preco, setPreco] = useState("");
+  const [lancamento, setLancamento] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editNome, setEditNome] = useState("");
   const [editCategoria, setEditCategoria] = useState("");
   const [editPreco, setEditPreco] = useState("");
+  const [editLancamento, setEditLancamento] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>("Todos");
 
   const handleAdd = async () => {
@@ -42,11 +44,17 @@ export default function Products() {
       toast.error("Preço inválido");
       return;
     }
+    const lanc = lancamento.trim() ? Number(lancamento) : undefined;
+    if (lancamento.trim() && (Number.isNaN(lanc) || (lanc as number) <= 0)) {
+      toast.error("Lançamento inválido");
+      return;
+    }
     try {
-      await addProduct.mutateAsync({ nome: nome.trim(), categoria, preco: precoNum });
+      await addProduct.mutateAsync({ nome: nome.trim(), categoria, preco: precoNum, lancamento: lanc });
       setNome("");
       setCategoria("");
       setPreco("");
+      setLancamento("");
       setOpen(false);
       toast.success("Produto cadastrado com sucesso!");
     } catch (err: unknown) {
@@ -61,6 +69,7 @@ export default function Products() {
     setEditNome(product.nome);
     setEditCategoria(product.categoria);
     setEditPreco(String(product.preco));
+    setEditLancamento(product.lancamento ? String(product.lancamento) : "");
     setEditOpen(true);
   };
 
@@ -74,10 +83,15 @@ export default function Products() {
       toast.error("Preço inválido");
       return;
     }
+    const lanc = editLancamento.trim() ? Number(editLancamento) : undefined;
+    if (editLancamento.trim() && (Number.isNaN(lanc) || (lanc as number) <= 0)) {
+      toast.error("Lançamento inválido");
+      return;
+    }
     try {
       await updateProduct.mutateAsync({
         id: editId,
-        data: { nome: editNome.trim(), categoria: editCategoria, preco: precoNum },
+        data: { nome: editNome.trim(), categoria: editCategoria, preco: precoNum, lancamento: lanc },
       });
       setEditOpen(false);
       toast.success("Produto atualizado com sucesso!");
@@ -133,6 +147,15 @@ export default function Products() {
                 <Label className="text-sm">Preço (R$)</Label>
                 <Input type="number" value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="9499" />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Lançamento (ano/ordem)</Label>
+                <Input
+                  type="number"
+                  value={lancamento}
+                  onChange={(e) => setLancamento(e.target.value)}
+                  placeholder="Ex: 2022"
+                />
+              </div>
               <Button onClick={handleAdd} className="w-full" disabled={addProduct.isPending}>
                 Cadastrar
               </Button>
@@ -176,6 +199,15 @@ export default function Products() {
                   value={editPreco}
                   onChange={(e) => setEditPreco(e.target.value)}
                   placeholder="9499"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Lançamento (ano/ordem)</Label>
+                <Input
+                  type="number"
+                  value={editLancamento}
+                  onChange={(e) => setEditLancamento(e.target.value)}
+                  placeholder="Ex: 2022"
                 />
               </div>
               <Button

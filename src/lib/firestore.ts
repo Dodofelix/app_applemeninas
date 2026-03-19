@@ -97,7 +97,14 @@ function semUndefined<T extends Record<string, unknown>>(obj: T): Record<string,
 // --- Products ---
 export async function getProducts(): Promise<Product[]> {
   const snap = await getDocs(collection(db, PRODUCTS));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product));
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Product));
+  list.sort((a, b) => {
+    const la = (a as Product).lancamento ?? 9999;
+    const lb = (b as Product).lancamento ?? 9999;
+    if (la !== lb) return la - lb; // mais antigo -> mais novo
+    return String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR", { sensitivity: "base" });
+  });
+  return list;
 }
 
 export async function addProduct(product: Omit<Product, "id">): Promise<string> {
@@ -105,9 +112,16 @@ export async function addProduct(product: Omit<Product, "id">): Promise<string> 
     nome: String(product.nome ?? "").trim(),
     categoria: String(product.categoria ?? "").trim(),
     preco: Number(product.preco),
+    lancamento:
+      product.lancamento === undefined || product.lancamento === null || product.lancamento === ("" as unknown as number)
+        ? undefined
+        : Number(product.lancamento),
   };
   if (!data.nome || !data.categoria || data.preco <= 0) {
     throw new Error("Produto inválido: nome, categoria e preço são obrigatórios.");
+  }
+  if (data.lancamento !== undefined && (Number.isNaN(data.lancamento) || data.lancamento <= 0)) {
+    throw new Error("Lançamento inválido: informe um ano/ordem válido.");
   }
   const ref = await addDoc(collection(db, PRODUCTS), data);
   return ref.id;

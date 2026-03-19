@@ -39,6 +39,8 @@ export interface Product {
   nome: string;
   categoria: string;
   preco: number;
+  /** Ano (ou ordem) de lançamento. Usado para ordenar catálogo do mais antigo ao mais novo. */
+  lancamento?: number;
 }
 
 export type OrderStatus = 'Contrato pendente' | 'Contrato gerado' | 'Aguardando assinatura' | 'Contrato assinado';
@@ -79,14 +81,14 @@ export const CATEGORIES = [
 ] as const;
 
 export const mockProducts: Product[] = [
-  { id: '1', nome: 'iPhone 15 Pro Max 256GB', categoria: 'iPhone', preco: 9499 },
-  { id: '2', nome: 'iPhone 15 128GB', categoria: 'iPhone', preco: 5999 },
-  { id: '3', nome: 'MacBook Air M3 256GB', categoria: 'MacBook', preco: 12999 },
-  { id: '4', nome: 'iPad Air M2 128GB', categoria: 'iPad', preco: 6499 },
-  { id: '5', nome: 'Apple Watch Series 9 45mm', categoria: 'Apple Watch', preco: 3999 },
-  { id: '6', nome: 'iMac M3 24" 256GB', categoria: 'iMac', preco: 15499 },
-  { id: '7', nome: 'AirPods Pro 2ª geração', categoria: 'Acessórios', preco: 1899 },
-  { id: '8', nome: 'Mac Mini M2 256GB', categoria: 'Mac Mini', preco: 5499 },
+  { id: '7', nome: 'AirPods Pro 2ª geração', categoria: 'Acessórios', preco: 1899, lancamento: 2022 },
+  { id: '8', nome: 'Mac Mini M2 256GB', categoria: 'Mac Mini', preco: 5499, lancamento: 2023 },
+  { id: '1', nome: 'iPhone 15 Pro Max 256GB', categoria: 'iPhone', preco: 9499, lancamento: 2023 },
+  { id: '2', nome: 'iPhone 15 128GB', categoria: 'iPhone', preco: 5999, lancamento: 2023 },
+  { id: '5', nome: 'Apple Watch Series 9 45mm', categoria: 'Apple Watch', preco: 3999, lancamento: 2023 },
+  { id: '6', nome: 'iMac M3 24" 256GB', categoria: 'iMac', preco: 15499, lancamento: 2023 },
+  { id: '3', nome: 'MacBook Air M3 256GB', categoria: 'MacBook', preco: 12999, lancamento: 2024 },
+  { id: '4', nome: 'iPad Air M2 128GB', categoria: 'iPad', preco: 6499, lancamento: 2024 },
 ];
 
 export const mockClients: Client[] = [

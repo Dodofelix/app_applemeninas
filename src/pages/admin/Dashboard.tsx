@@ -91,7 +91,42 @@ export default function Dashboard() {
     () => expensesNoPeriodo.reduce((acc, e) => acc + (e.valor || 0), 0),
     [expensesNoPeriodo]
   );
-  const saldoMes = faturamentoMes - saidasMes;
+
+  // Saldo acumulado: soma (entradas - saídas) de todos os meses até o mês selecionado.
+  // Assim, quando você avançar o filtro para meses seguintes, ele "puxa" o saldo do mês anterior.
+  const toMonthKey = (dateStr?: string) => (dateStr && dateStr.length >= 7 ? dateStr.slice(0, 7) : "");
+
+  const entradasPorMes = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const o of orders) {
+      const key = toMonthKey(o.data);
+      if (!key) continue;
+      if (!clientesComPedidoPago.has(o.cliente_id)) continue;
+      map.set(key, (map.get(key) || 0) + (o.valor || 0));
+    }
+    return map;
+  }, [orders, clientesComPedidoPago]);
+
+  const saidasPorMes = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of expenses) {
+      const key = toMonthKey(e.data);
+      if (!key) continue;
+      map.set(key, (map.get(key) || 0) + (e.valor || 0));
+    }
+    return map;
+  }, [expenses]);
+
+  const saldoAtual = useMemo(() => {
+    const keys = new Set<string>([...entradasPorMes.keys(), ...saidasPorMes.keys()]);
+    const sorted = Array.from(keys).sort(); // YYYY-MM ordena lexicograficamente
+    let saldo = 0;
+    for (const key of sorted) {
+      if (key > prefixMes) break;
+      saldo += (entradasPorMes.get(key) || 0) - (saidasPorMes.get(key) || 0);
+    }
+    return saldo;
+  }, [entradasPorMes, saidasPorMes, prefixMes]);
   const loading = ordersLoading || clientsLoading || expensesLoading;
 
   const movimentacoes: MovItem[] = useMemo(
@@ -222,8 +257,35 @@ export default function Dashboard() {
     [clients, ordersNoPeriodoPagos, expensesNoPeriodo]
   );
 
-  const totalLucroPositivo = lucroPorCliente.reduce((acc, r) => acc + (r.lucro > 0 ? r.lucro : 0), 0);
-  const reserva = totalLucroPositivo * 0.1;
+  // Reserva acumulada: 10% do lucro positivo por cliente, acumulando todos os meses até o período selecionado.
+  const reservaAtual = useMemo(() => {
+    const entriesByClient = new Map<string, number>();
+    for (const o of orders) {
+      const month = toMonthKey(o.data);
+      if (!month || month > prefixMes) continue;
+      if (!clientesComPedidoPago.has(o.cliente_id)) continue;
+      const id = o.cliente_id;
+      entriesByClient.set(id, (entriesByClient.get(id) || 0) + (o.valor || 0));
+    }
+
+    const costsByClient = new Map<string, number>();
+    for (const e of expenses) {
+      const month = toMonthKey(e.data);
+      if (!month || month > prefixMes) continue;
+      if (!e.cliente_id) continue; // mantém regra original: só custos vinculados ao cliente entram no lucro por cliente
+      const id = e.cliente_id;
+      costsByClient.set(id, (costsByClient.get(id) || 0) + (e.valor || 0));
+    }
+
+    let totalLucroPositivo = 0;
+    const ids = new Set<string>([...entriesByClient.keys(), ...costsByClient.keys()]);
+    for (const id of ids) {
+      const lucro = (entriesByClient.get(id) || 0) - (costsByClient.get(id) || 0);
+      if (lucro > 0) totalLucroPositivo += lucro;
+    }
+
+    return totalLucroPositivo * 0.1;
+  }, [orders, expenses, clientesComPedidoPago, prefixMes]);
 
   const clientesComPedidoNoPeriodo = useMemo(
     () => new Set(ordersNoPeriodoPagos.map((o) => o.cliente_id).filter(Boolean)).size,
@@ -252,7 +314,7 @@ export default function Dashboard() {
             {mostrarFiltroPeriodo ? "Ocultar filtro de período" : "Filtrar por mês e ano"}
           </Button>
           <span className="text-sm text-muted-foreground">
-            Período em exibição: <strong className="text-foreground">{periodoLabel}</strong>
+            Saldo atual ({periodoLabel}): <strong className="text-foreground">{loading ? "—" : formatCurrency(saldoAtual)}</strong>
           </span>
         </div>
         {mostrarFiltroPeriodo && (
@@ -437,10 +499,10 @@ export default function Dashboard() {
             <div className="rounded-lg border border-border/80 bg-primary/10 p-4">
               <div className="flex items-center gap-2 text-primary">
                 <Wallet className="h-4 w-4" />
-                <span className="text-xs font-medium uppercase tracking-wide">Saldo (período)</span>
+                <span className="text-xs font-medium uppercase tracking-wide">Saldo atual</span>
               </div>
               <p className="mt-1 text-xl font-bold text-foreground">
-                {loading ? "—" : formatCurrency(saldoMes)}
+                {loading ? "—" : formatCurrency(saldoAtual)}
               </p>
             </div>
             <div className="rounded-lg border border-border/80 bg-violet-500/10 p-4">
@@ -449,7 +511,7 @@ export default function Dashboard() {
                 <span className="text-xs font-medium uppercase tracking-wide">Reserva (10% do lucro)</span>
               </div>
               <p className="mt-1 text-xl font-bold text-foreground">
-                {loading ? "—" : formatCurrency(reserva)}
+                {loading ? "—" : formatCurrency(reservaAtual)}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 10% do lucro de cada cliente
