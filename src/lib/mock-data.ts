@@ -77,11 +77,11 @@ export interface Order {
 }
 
 export const CATEGORIES = [
-  'iPhone', 'iPad', 'MacBook', 'Apple Watch', 'iMac', 'Mac Mini', 'Acessórios'
+  'iPhone', 'iPad', 'MacBook', 'Apple Watch', 'iMac', 'Mac Mini', 'AirPods', 'Acessórios'
 ] as const;
 
 export const mockProducts: Product[] = [
-  { id: '7', nome: 'AirPods Pro 2ª geração', categoria: 'Acessórios', preco: 1899, lancamento: 2022 },
+  { id: '7', nome: 'AirPods Pro 2ª geração', categoria: 'AirPods', preco: 1899, lancamento: 2022 },
   { id: '8', nome: 'Mac Mini M2 256GB', categoria: 'Mac Mini', preco: 5499, lancamento: 2023 },
   { id: '1', nome: 'iPhone 15 Pro Max 256GB', categoria: 'iPhone', preco: 9499, lancamento: 2023 },
   { id: '2', nome: 'iPhone 15 128GB', categoria: 'iPhone', preco: 5999, lancamento: 2023 },

@@ -6,6 +6,7 @@ import {
   getDoc,
   setDoc,
   deleteDoc,
+  deleteField,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Product, Client, Order, StatusPedidoCliente, StatusNotaFiscal } from "./mock-data";
@@ -123,12 +124,20 @@ export async function addProduct(product: Omit<Product, "id">): Promise<string> 
   if (data.lancamento !== undefined && (Number.isNaN(data.lancamento) || data.lancamento <= 0)) {
     throw new Error("Lançamento inválido: informe um ano/ordem válido.");
   }
-  const ref = await addDoc(collection(db, PRODUCTS), data);
+  const ref = await addDoc(collection(db, PRODUCTS), semUndefined(data));
   return ref.id;
 }
 
 export async function setProduct(id: string, data: Partial<Product>): Promise<void> {
-  await setDoc(doc(db, PRODUCTS, id), data, { merge: true });
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === undefined) {
+      clean[k] = deleteField(); // Firestore não aceita undefined; remove o campo
+    } else {
+      clean[k] = v;
+    }
+  }
+  await setDoc(doc(db, PRODUCTS, id), clean, { merge: true });
 }
 
 /** Cria os produtos iniciais na base (catálogo Apple). */
@@ -233,6 +242,12 @@ export async function updateOrderStatusPedido(orderId: string, status_pedido: St
   await setDoc(doc(db, ORDERS, orderId), { status_pedido }, { merge: true });
 }
 
+export async function updateOrder(orderId: string, data: Partial<Omit<Order, "id">>): Promise<void> {
+  const clean = semUndefined(data as Record<string, unknown>);
+  if (Object.keys(clean).length === 0) return;
+  await setDoc(doc(db, ORDERS, orderId), clean, { merge: true });
+}
+
 export async function deleteOrder(orderId: string): Promise<void> {
   await deleteDoc(doc(db, ORDERS, orderId));
 }
@@ -242,7 +257,7 @@ export async function deleteClient(clientId: string): Promise<void> {
 }
 
 // --- Saídas (fluxo de caixa) ---
-export type ExpenseTipo = "fornecedor" | "outro";
+export type ExpenseTipo = "nota_fiscal" | "motoboy" | "frete" | "desconto" | "ads" | "fornecedor" | "outro";
 
 export interface Expense {
   id: string;
@@ -267,14 +282,24 @@ export async function addExpense(expense: Omit<Expense, "id">): Promise<string> 
     valor: Number(expense.valor),
     data: String(expense.data ?? "").trim(),
   };
-  if (!data.descricao || (data.valor as number) <= 0 || !data.data) {
-    throw new Error("Saída inválida: descrição, valor positivo e data são obrigatórios.");
+  if ((data.valor as number) <= 0 || !data.data) {
+    throw new Error("Saída inválida: valor positivo e data são obrigatórios.");
   }
   if (expense.tipo) data.tipo = expense.tipo;
   if (expense.cliente_id) data.cliente_id = expense.cliente_id;
   if (expense.cliente_nome) data.cliente_nome = expense.cliente_nome;
   const ref = await addDoc(collection(db, EXPENSES), data);
   return ref.id;
+}
+
+export async function updateExpense(expenseId: string, data: Partial<Omit<Expense, "id">>): Promise<void> {
+  const clean: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === undefined) continue;
+    clean[k] = v;
+  }
+  if (Object.keys(clean).length === 0) return;
+  await setDoc(doc(db, EXPENSES, expenseId), clean, { merge: true });
 }
 
 export async function deleteExpense(expenseId: string): Promise<void> {

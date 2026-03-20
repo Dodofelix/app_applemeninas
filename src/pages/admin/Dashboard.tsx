@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank, Calendar } from "lucide-react";
+import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank, Calendar, Pencil } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,9 +9,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { useClients, useOrders, useExpenses, useAddExpense, useDeleteExpense, useDeleteOrder } from "@/hooks/useFirestore";
+import { useClients, useOrders, useExpenses, useAddExpense, useUpdateExpense, useDeleteExpense, useUpdateOrder, useDeleteOrder } from "@/hooks/useFirestore";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
+import type { Expense, ExpenseTipo } from "@/lib/firestore";
+
+const TIPO_SAIDA_LABEL: Record<ExpenseTipo, string> = {
+  nota_fiscal: "Nota Fiscal",
+  motoboy: "Motoboy",
+  frete: "Frete",
+  desconto: "Desconto",
+  ads: "ADS",
+  fornecedor: "Pagamento a fornecedor",
+  outro: "Outro",
+};
+import type { Order } from "@/lib/mock-data";
 import PublicOrderForm from "@/pages/PublicOrderForm";
 import { toast } from "sonner";
 
@@ -24,7 +37,9 @@ export default function Dashboard() {
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: expenses = [], isLoading: expensesLoading } = useExpenses();
   const addExpense = useAddExpense();
+  const updateExpense = useUpdateExpense();
   const deleteExpense = useDeleteExpense();
+  const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
 
   const queryClient = useQueryClient();
@@ -33,8 +48,10 @@ export default function Dashboard() {
   const [descricaoSaida, setDescricaoSaida] = useState("");
   const [valorSaida, setValorSaida] = useState("");
   const [dataSaida, setDataSaida] = useState(() => new Date().toISOString().slice(0, 10));
-  const [tipoSaida, setTipoSaida] = useState<"fornecedor" | "outro">("outro");
+  const [tipoSaida, setTipoSaida] = useState<ExpenseTipo>("outro");
   const [clienteIdSaida, setClienteIdSaida] = useState<string>("__nenhum__");
+  const [editSaida, setEditSaida] = useState<Expense | null>(null);
+  const [editEntrada, setEditEntrada] = useState<Order | null>(null);
   const lucroPorClienteRef = useRef<HTMLDivElement>(null);
 
   const now = new Date();
@@ -43,6 +60,7 @@ export default function Dashboard() {
   const [filtroAno, setFiltroAno] = useState<number>(anoAtual);
   const [filtroMes, setFiltroMes] = useState<number>(mesAtual);
   const [mostrarFiltroPeriodo, setMostrarFiltroPeriodo] = useState(false);
+  const [filtroMovimentacao, setFiltroMovimentacao] = useState<"todas" | "entradas" | "saidas">("todas");
 
   const prefixMes = useMemo(
     () => `${filtroAno}-${String(filtroMes).padStart(2, "0")}`,
@@ -117,7 +135,7 @@ export default function Dashboard() {
     return map;
   }, [expenses]);
 
-  const saldoAtual = useMemo(() => {
+  const saldoBruto = useMemo(() => {
     const keys = new Set<string>([...entradasPorMes.keys(), ...saidasPorMes.keys()]);
     const sorted = Array.from(keys).sort(); // YYYY-MM ordena lexicograficamente
     let saldo = 0;
@@ -127,9 +145,44 @@ export default function Dashboard() {
     }
     return saldo;
   }, [entradasPorMes, saidasPorMes, prefixMes]);
+
+  // Reserva acumulada: 10% do lucro positivo por cliente, acumulando todos os meses até o período selecionado.
+  // Conta como saída automática — descontada do saldo atual (reserva forçada).
+  const reservaAtual = useMemo(() => {
+    const entriesByClient = new Map<string, number>();
+    for (const o of orders) {
+      const month = toMonthKey(o.data);
+      if (!month || month > prefixMes) continue;
+      if (!clientesComPedidoPago.has(o.cliente_id)) continue;
+      const id = o.cliente_id;
+      entriesByClient.set(id, (entriesByClient.get(id) || 0) + (o.valor || 0));
+    }
+
+    const costsByClient = new Map<string, number>();
+    for (const e of expenses) {
+      const month = toMonthKey(e.data);
+      if (!month || month > prefixMes) continue;
+      if (!e.cliente_id) continue;
+      const id = e.cliente_id;
+      costsByClient.set(id, (costsByClient.get(id) || 0) + (e.valor || 0));
+    }
+
+    let totalLucroPositivo = 0;
+    const ids = new Set<string>([...entriesByClient.keys(), ...costsByClient.keys()]);
+    for (const id of ids) {
+      const lucro = (entriesByClient.get(id) || 0) - (costsByClient.get(id) || 0);
+      if (lucro > 0) totalLucroPositivo += lucro;
+    }
+
+    return totalLucroPositivo * 0.1;
+  }, [orders, expenses, clientesComPedidoPago, prefixMes]);
+
+  // Saldo atual já descontado da reserva (reserva forçada).
+  const saldoAtual = saldoBruto - reservaAtual;
+
   const loading = ordersLoading || clientsLoading || expensesLoading;
 
-  const movimentacoes: MovItem[] = useMemo(
+  const movimentacoesBruto: MovItem[] = useMemo(
     () =>
       [
         ...ordersNoPeriodoPagos.map((o) => ({
@@ -139,16 +192,29 @@ export default function Dashboard() {
           descricao: `${o.cliente_nome} — ${o.produto}`,
           valor: o.valor || 0,
         })),
-        ...expensesNoPeriodo.map((e) => ({
-          type: "saida" as const,
-          id: e.id,
-          data: e.data || "",
-          descricao: e.cliente_nome ? `${e.descricao} (${e.cliente_nome})` : e.descricao,
-          valor: e.valor || 0,
-        })),
-      ].sort((a, b) => (b.data || "").localeCompare(a.data || "")).slice(0, 15),
+        ...expensesNoPeriodo.map((e) => {
+          const tipoLabel = TIPO_SAIDA_LABEL[e.tipo || "outro"];
+          const parteDesc = e.descricao?.trim() || "";
+          const parteCliente = e.cliente_nome ? ` (${e.cliente_nome})` : "";
+          const descricao = parteDesc ? `${tipoLabel} / ${parteDesc}${parteCliente}` : `${tipoLabel}${parteCliente}`;
+          return {
+            type: "saida" as const,
+            id: e.id,
+            data: e.data || "",
+            descricao,
+            valor: e.valor || 0,
+          };
+        }),
+      ].sort((a, b) => (b.data || "").localeCompare(a.data || "")),
     [ordersNoPeriodoPagos, expensesNoPeriodo]
   );
+
+  const movimentacoes: MovItem[] = useMemo(() => {
+    let list = movimentacoesBruto;
+    if (filtroMovimentacao === "entradas") list = list.filter((m) => m.type === "entrada");
+    else if (filtroMovimentacao === "saidas") list = list.filter((m) => m.type === "saida");
+    return list.slice(0, 50);
+  }, [movimentacoesBruto, filtroMovimentacao]);
 
   const MESES: { value: number; label: string }[] = [
     { value: 1, label: "Janeiro" },
@@ -173,10 +239,6 @@ export default function Dashboard() {
   const handleAddSaida = async () => {
     const desc = descricaoSaida.trim();
     const val = parseFloat(valorSaida.replace(",", "."));
-    if (!desc) {
-      toast.error("Informe o motivo da saída.");
-      return;
-    }
     if (Number.isNaN(val) || val <= 0) {
       toast.error("Informe um valor válido.");
       return;
@@ -219,6 +281,91 @@ export default function Dashboard() {
     toast.success("Entrada adicionada ao painel.");
   };
 
+  const [editDescricaoSaida, setEditDescricaoSaida] = useState("");
+  const [editValorSaida, setEditValorSaida] = useState("");
+  const [editDataSaida, setEditDataSaida] = useState("");
+  const [editTipoSaida, setEditTipoSaida] = useState<ExpenseTipo>("outro");
+  const [editClienteIdSaida, setEditClienteIdSaida] = useState<string>("__nenhum__");
+  const [editValorEntrada, setEditValorEntrada] = useState("");
+  const [editDataEntrada, setEditDataEntrada] = useState("");
+  const [editProdutoEntrada, setEditProdutoEntrada] = useState("");
+
+  const handleEditSaida = (e: Expense) => {
+    setEditSaida(e);
+    setEditDescricaoSaida(e.descricao || "");
+    setEditValorSaida(String(e.valor ?? "").replace(".", ","));
+    setEditDataSaida(e.data || new Date().toISOString().slice(0, 10));
+    setEditTipoSaida(e.tipo || "outro");
+    setEditClienteIdSaida(e.cliente_id || "__nenhum__");
+  };
+
+  const handleSaveEditSaida = async () => {
+    if (!editSaida) return;
+    const desc = editDescricaoSaida.trim();
+    const val = parseFloat(editValorSaida.replace(",", "."));
+    if (Number.isNaN(val) || val <= 0) {
+      toast.error("Informe um valor válido.");
+      return;
+    }
+    if (!editDataSaida) {
+      toast.error("Informe a data.");
+      return;
+    }
+    const cliente = editClienteIdSaida && editClienteIdSaida !== "__nenhum__" ? clients.find((c) => c.id === editClienteIdSaida) : null;
+    try {
+      await updateExpense.mutateAsync({
+        id: editSaida.id,
+        data: {
+          descricao: desc,
+          valor: val,
+          data: editDataSaida,
+          tipo: editTipoSaida,
+          cliente_id: cliente ? cliente.id : null,
+          cliente_nome: cliente ? cliente.nome : null,
+        } as Partial<Expense>,
+      });
+      setEditSaida(null);
+      toast.success("Saída atualizada.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar.");
+    }
+  };
+
+  const handleEditEntrada = (o: Order) => {
+    setEditEntrada(o);
+    setEditValorEntrada(String(o.valor ?? "").replace(".", ","));
+    setEditDataEntrada(o.data || new Date().toISOString().slice(0, 10));
+    setEditProdutoEntrada(o.produto || "");
+  };
+
+  const handleSaveEditEntrada = async () => {
+    if (!editEntrada) return;
+    const val = parseFloat(editValorEntrada.replace(",", "."));
+    if (Number.isNaN(val) || val <= 0) {
+      toast.error("Informe um valor válido.");
+      return;
+    }
+    if (!editDataEntrada) {
+      toast.error("Informe a data.");
+      return;
+    }
+    const produto = editProdutoEntrada.trim();
+    if (!produto) {
+      toast.error("Informe o produto.");
+      return;
+    }
+    try {
+      await updateOrder.mutateAsync({
+        id: editEntrada.id,
+        data: { valor: val, data: editDataEntrada, produto },
+      });
+      setEditEntrada(null);
+      toast.success("Entrada atualizada.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar.");
+    }
+  };
+
   const handleDeleteSaida = async (id: string) => {
     if (!window.confirm("Excluir esta saída?")) return;
     try {
@@ -256,36 +403,6 @@ export default function Dashboard() {
         .sort((a, b) => b.lucro - a.lucro),
     [clients, ordersNoPeriodoPagos, expensesNoPeriodo]
   );
-
-  // Reserva acumulada: 10% do lucro positivo por cliente, acumulando todos os meses até o período selecionado.
-  const reservaAtual = useMemo(() => {
-    const entriesByClient = new Map<string, number>();
-    for (const o of orders) {
-      const month = toMonthKey(o.data);
-      if (!month || month > prefixMes) continue;
-      if (!clientesComPedidoPago.has(o.cliente_id)) continue;
-      const id = o.cliente_id;
-      entriesByClient.set(id, (entriesByClient.get(id) || 0) + (o.valor || 0));
-    }
-
-    const costsByClient = new Map<string, number>();
-    for (const e of expenses) {
-      const month = toMonthKey(e.data);
-      if (!month || month > prefixMes) continue;
-      if (!e.cliente_id) continue; // mantém regra original: só custos vinculados ao cliente entram no lucro por cliente
-      const id = e.cliente_id;
-      costsByClient.set(id, (costsByClient.get(id) || 0) + (e.valor || 0));
-    }
-
-    let totalLucroPositivo = 0;
-    const ids = new Set<string>([...entriesByClient.keys(), ...costsByClient.keys()]);
-    for (const id of ids) {
-      const lucro = (entriesByClient.get(id) || 0) - (costsByClient.get(id) || 0);
-      if (lucro > 0) totalLucroPositivo += lucro;
-    }
-
-    return totalLucroPositivo * 0.1;
-  }, [orders, expenses, clientesComPedidoPago, prefixMes]);
 
   const clientesComPedidoNoPeriodo = useMemo(
     () => new Set(ordersNoPeriodoPagos.map((o) => o.cliente_id).filter(Boolean)).size,
@@ -395,11 +512,16 @@ export default function Dashboard() {
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
                     <Label>Tipo de saída</Label>
-                    <Select value={tipoSaida} onValueChange={(v: "fornecedor" | "outro") => setTipoSaida(v)}>
+                    <Select value={tipoSaida} onValueChange={(v) => setTipoSaida(v as ExpenseTipo)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="nota_fiscal">Nota Fiscal</SelectItem>
+                        <SelectItem value="motoboy">Motoboy</SelectItem>
+                        <SelectItem value="frete">Frete</SelectItem>
+                        <SelectItem value="desconto">Desconto</SelectItem>
+                        <SelectItem value="ads">ADS</SelectItem>
                         <SelectItem value="fornecedor">Pagamento a fornecedor</SelectItem>
                         <SelectItem value="outro">Outro</SelectItem>
                       </SelectContent>
@@ -425,7 +547,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Motivo da saída (descrição) *</Label>
+                    <Label>Motivo da saída (descrição)</Label>
                     <Textarea
                       value={descricaoSaida}
                       onChange={(e) => setDescricaoSaida(e.target.value)}
@@ -474,6 +596,123 @@ export default function Dashboard() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={!!editSaida} onOpenChange={(open) => !open && setEditSaida(null)}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Editar saída</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label>Tipo de saída</Label>
+                    <Select value={editTipoSaida} onValueChange={(v) => setEditTipoSaida(v as ExpenseTipo)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nota_fiscal">Nota Fiscal</SelectItem>
+                        <SelectItem value="motoboy">Motoboy</SelectItem>
+                        <SelectItem value="frete">Frete</SelectItem>
+                        <SelectItem value="desconto">Desconto</SelectItem>
+                        <SelectItem value="ads">ADS</SelectItem>
+                        <SelectItem value="fornecedor">Pagamento a fornecedor</SelectItem>
+                        <SelectItem value="outro">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Cliente (opcional)</Label>
+                    <Select value={editClienteIdSaida} onValueChange={setEditClienteIdSaida}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Nenhum — saída geral" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__nenhum__">Nenhum — saída geral</SelectItem>
+                        {clients.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Motivo da saída (descrição)</Label>
+                    <Textarea
+                      value={editDescricaoSaida}
+                      onChange={(e) => setEditDescricaoSaida(e.target.value)}
+                      placeholder="Ex: Pagamento ao fornecedor..."
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Valor (R$)</Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={editValorSaida}
+                        onChange={(e) => setEditValorSaida(e.target.value)}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Data</Label>
+                      <Input
+                        type="date"
+                        value={editDataSaida}
+                        onChange={(e) => setEditDataSaida(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveEditSaida} className="w-full" disabled={updateExpense.isPending}>
+                    {updateExpense.isPending ? "Salvando..." : "Salvar alterações"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!editEntrada} onOpenChange={(open) => !open && setEditEntrada(null)}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Editar entrada</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label>Produto</Label>
+                    <Input
+                      value={editProdutoEntrada}
+                      onChange={(e) => setEditProdutoEntrada(e.target.value)}
+                      placeholder="Ex: iPhone 15 128GB"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Valor (R$)</Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={editValorEntrada}
+                        onChange={(e) => setEditValorEntrada(e.target.value)}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Data</Label>
+                      <Input
+                        type="date"
+                        value={editDataEntrada}
+                        onChange={(e) => setEditDataEntrada(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveEditEntrada} className="w-full" disabled={updateOrder.isPending}>
+                    {updateOrder.isPending ? "Salvando..." : "Salvar alterações"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardHeader>
         <CardContent className="space-y-6 overflow-hidden pt-0">
@@ -504,6 +743,9 @@ export default function Dashboard() {
               <p className="mt-1 text-xl font-bold text-foreground">
                 {loading ? "—" : formatCurrency(saldoAtual)}
               </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Já descontada a reserva
+              </p>
             </div>
             <div className="rounded-lg border border-border/80 bg-violet-500/10 p-4">
               <div className="flex items-center gap-2 text-violet-700 dark:text-violet-400">
@@ -514,13 +756,20 @@ export default function Dashboard() {
                 {loading ? "—" : formatCurrency(reservaAtual)}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                10% do lucro de cada cliente
+                10% do lucro — descontada automaticamente do saldo
               </p>
             </div>
           </div>
 
           <div>
             <h3 className="text-sm font-medium mb-3">Movimentações do período</h3>
+            <Tabs value={filtroMovimentacao} onValueChange={(v) => setFiltroMovimentacao(v as "todas" | "entradas" | "saidas")} className="mb-3">
+              <TabsList className="w-full sm:w-auto">
+                <TabsTrigger value="todas">Todas</TabsTrigger>
+                <TabsTrigger value="entradas">Entradas</TabsTrigger>
+                <TabsTrigger value="saidas">Saídas</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <div className="hidden md:block overflow-x-auto rounded-lg border border-border/80">
               <Table className="min-w-[400px]">
                 <TableHeader>
@@ -529,7 +778,7 @@ export default function Dashboard() {
                     <TableHead className="text-xs">Descrição</TableHead>
                     <TableHead className="text-xs">Tipo</TableHead>
                     <TableHead className="text-xs text-right">Valor</TableHead>
-                    <TableHead className="text-xs w-[60px]" />
+                    <TableHead className="text-xs w-[90px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -569,16 +818,34 @@ export default function Dashboard() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => (m.type === "entrada" ? handleDeleteEntrada(m.id) : handleDeleteSaida(m.id))}
-                            disabled={m.type === "entrada" ? deleteOrder.isPending : deleteExpense.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() =>
+                                m.type === "entrada"
+                                  ? handleEditEntrada(orders.find((o) => o.id === m.id)!)
+                                  : handleEditSaida(expenses.find((e) => e.id === m.id)!)
+                              }
+                              disabled={m.type === "entrada" ? updateOrder.isPending : updateExpense.isPending}
+                              title="Editar"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => (m.type === "entrada" ? handleDeleteEntrada(m.id) : handleDeleteSaida(m.id))}
+                              disabled={m.type === "entrada" ? deleteOrder.isPending : deleteExpense.isPending}
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -615,9 +882,25 @@ export default function Dashboard() {
                         type="button"
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          m.type === "entrada"
+                            ? handleEditEntrada(orders.find((o) => o.id === m.id)!)
+                            : handleEditSaida(expenses.find((e) => e.id === m.id)!)
+                        }
+                        disabled={m.type === "entrada" ? updateOrder.isPending : updateExpense.isPending}
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         className="h-8 w-8 text-destructive"
                         onClick={() => (m.type === "entrada" ? handleDeleteEntrada(m.id) : handleDeleteSaida(m.id))}
                         disabled={m.type === "entrada" ? deleteOrder.isPending : deleteExpense.isPending}
+                        title="Excluir"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

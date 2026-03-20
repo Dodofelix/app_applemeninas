@@ -14,12 +14,14 @@ import {
   getCalculatorValues as getCalculatorValuesApi,
   setCalculatorValues as setCalculatorValuesApi,
   updateOrderStatusPedido,
+  updateOrder as updateOrderApi,
   deleteOrder as deleteOrderApi,
   updateClientNotaFiscal as updateClientNotaFiscalApi,
   deleteClient as deleteClientApi,
   updateClientStatusPedido as updateClientStatusPedidoApi,
   getExpenses as getExpensesApi,
   addExpense as addExpenseApi,
+  updateExpense as updateExpenseApi,
   deleteExpense as deleteExpenseApi,
   getUserProfile,
   setUserProfile,
@@ -174,6 +176,14 @@ export function useUpdateOrderStatusPedido() {
   });
 }
 
+export function useUpdateOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Omit<Order, "id">> }) => updateOrderApi(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
 export function useDeleteOrder() {
   const qc = useQueryClient();
   return useMutation({
@@ -211,6 +221,14 @@ export function useAddExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (expense: Omit<Expense, "id">) => addExpenseApi(expense),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["expenses"] }),
+  });
+}
+
+export function useUpdateExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Omit<Expense, "id">> }) => updateExpenseApi(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["expenses"] }),
   });
 }

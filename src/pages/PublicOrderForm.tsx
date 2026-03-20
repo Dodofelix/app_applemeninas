@@ -54,6 +54,7 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
   "Apple Watch": Watch,
   iMac: Monitor,
   "Mac Mini": Box,
+  AirPods: Package,
   Acessórios: Package,
 };
 
