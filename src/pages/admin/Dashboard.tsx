@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank, Calendar, Pencil } from "lucide-react";
+import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank, Calendar, Pencil, BarChart3 } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -408,6 +408,22 @@ export default function Dashboard() {
     () => new Set(ordersNoPeriodoPagos.map((o) => o.cliente_id).filter(Boolean)).size,
     [ordersNoPeriodoPagos]
   );
+
+  // Lucro por período: mês a mês no ano selecionado
+  const lucroPorPeriodo = useMemo(() => {
+    return MESES.map((m) => {
+      const key = `${filtroAno}-${String(m.value).padStart(2, "0")}`;
+      const entradas = entradasPorMes.get(key) || 0;
+      const saidas = saidasPorMes.get(key) || 0;
+      return {
+        mes: m.value,
+        mesLabel: m.label,
+        entradas,
+        saidas,
+        lucro: entradas - saidas,
+      };
+    });
+  }, [entradasPorMes, saidasPorMes, filtroAno]);
 
   const nomeMesSelecionado = MESES.find((m) => m.value === filtroMes)?.label ?? "";
   const periodoLabel = `${nomeMesSelecionado} ${filtroAno}`;
@@ -909,6 +925,79 @@ export default function Dashboard() {
                 </Card>
               ))}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Lucro por período
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Entradas menos saídas de cada mês no ano {filtroAno}.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0 overflow-hidden">
+          <div className="hidden md:block overflow-x-auto">
+            <Table className="min-w-[400px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Mês</TableHead>
+                  <TableHead className="text-xs text-right">Entradas</TableHead>
+                  <TableHead className="text-xs text-right">Saídas</TableHead>
+                  <TableHead className="text-xs text-right">Lucro</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      Carregando...
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  lucroPorPeriodo.map(({ mesLabel, entradas, saidas, lucro }) => (
+                    <TableRow key={mesLabel} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="font-medium text-sm">{mesLabel}</TableCell>
+                      <TableCell className="text-sm text-right text-emerald-700 dark:text-emerald-400">
+                        {formatCurrency(entradas)}
+                      </TableCell>
+                      <TableCell className="text-sm text-right text-red-700 dark:text-red-400">
+                        {formatCurrency(saidas)}
+                      </TableCell>
+                      <TableCell className="text-sm text-right font-semibold">
+                        <span className={lucro >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}>
+                          {formatCurrency(lucro)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="md:hidden space-y-3 p-4 pt-0">
+            {loading && <p className="text-center text-muted-foreground py-6">Carregando...</p>}
+            {!loading &&
+              lucroPorPeriodo.map(({ mesLabel, entradas, saidas, lucro }) => (
+                <Card key={mesLabel} className="border bg-card p-4 shadow-sm">
+                  <p className="font-medium text-sm">{mesLabel}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <span className="text-muted-foreground">Entradas:</span>
+                    <span className="text-right text-emerald-700 dark:text-emerald-400">{formatCurrency(entradas)}</span>
+                    <span className="text-muted-foreground">Saídas:</span>
+                    <span className="text-right text-red-700 dark:text-red-400">{formatCurrency(saidas)}</span>
+                    <span className="text-muted-foreground font-medium">Lucro:</span>
+                    <span
+                      className={`text-right font-semibold ${lucro >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}
+                    >
+                      {formatCurrency(lucro)}
+                    </span>
+                  </div>
+                </Card>
+              ))}
           </div>
         </CardContent>
       </Card>
