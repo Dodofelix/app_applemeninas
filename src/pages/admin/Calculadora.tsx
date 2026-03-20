@@ -25,16 +25,22 @@ import {
   CreditCard,
   Package,
   ArrowLeftRight,
+  Tablet,
+  Laptop,
+  Watch,
+  Monitor,
+  Cpu,
+  Headphones,
 } from "lucide-react";
 
 const CATEGORY_ICONS: Record<string, typeof Package> = {
   iPhone: Smartphone,
-  iPad: Package,
-  MacBook: Package,
-  "Apple Watch": Package,
-  iMac: Package,
-  "Mac Mini": Package,
-  AirPods: Package,
+  iPad: Tablet,
+  MacBook: Laptop,
+  "Apple Watch": Watch,
+  iMac: Monitor,
+  "Mac Mini": Cpu,
+  AirPods: Headphones,
   Acessórios: Package,
 };
 

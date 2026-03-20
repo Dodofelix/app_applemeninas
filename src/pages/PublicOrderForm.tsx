@@ -19,8 +19,9 @@ import {
   Laptop,
   Watch,
   Monitor,
-  Box,
   Package,
+  Headphones,
+  Cpu,
   Phone,
   MapPin,
   ShieldCheck,
@@ -53,8 +54,8 @@ const CATEGORY_ICONS: Record<string, typeof Package> = {
   MacBook: Laptop,
   "Apple Watch": Watch,
   iMac: Monitor,
-  "Mac Mini": Box,
-  AirPods: Package,
+  "Mac Mini": Cpu,
+  AirPods: Headphones,
   Acessórios: Package,
 };
 
