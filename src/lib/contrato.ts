@@ -73,7 +73,7 @@ function getClausulaPagamento(tipoPagamento: TipoPagamento, vars: ClausulaVars):
 }
 
 const TEMPLATE_CONTRATO = `
-CONTRATO DE INTERMEDIAÇÃO DE PRODUTOS DA LINHA APPLE 2025
+CONTRATO DE INTERMEDIAÇÃO DE PRODUTOS DA LINHA APPLE
 
 INTERMEDIADORA: Apple Meninas, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 45.462.401/0001-00, endereço eletrônico financeiroapplemeninas@gmail.com, endereço profissional R. Mal. Floriano Peixoto, 631 - Centro, Poá - SP, 08550-010, neste ato denominada INTERMEDIADORA.
 
@@ -549,7 +549,7 @@ function buildContratoHtml(dados: DadosContrato, fullPage: boolean): string {
       <div style="width: 48px; height: 48px; border-radius: ${CONTRATO_STYLES.radius}; background: ${CONTRATO_STYLES.primary}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 8px; box-sizing: border-box;"><img src="${logoAppleUrl}" alt="Apple Meninas" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) invert(1);" /></div>
       <div>
         <div style="font-size: 14pt; font-weight: 600; color: ${CONTRATO_STYLES.primary}; letter-spacing: -0.02em;">Contrato de Intermediação</div>
-        <div style="font-size: 11pt; color: ${CONTRATO_STYLES.textMuted}; margin-top: 2px;">Apple Meninas · Produtos da Linha Apple 2025</div>
+        <div style="font-size: 11pt; color: ${CONTRATO_STYLES.textMuted}; margin-top: 2px;">Apple Meninas · Produtos da Linha Apple</div>
       </div>
     </div>
   `;

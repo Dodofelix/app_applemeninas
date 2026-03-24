@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from "react";
-import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank, Calendar, Pencil, BarChart3 } from "lucide-react";
+import { ShoppingCart, Users, DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, UserCheck, PiggyBank, Calendar, Pencil, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,6 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useClients, useOrders, useExpenses, useAddExpense, useUpdateExpense, useDeleteExpense, useUpdateOrder, useDeleteOrder } from "@/hooks/useFirestore";
 import { formatCurrency, formatDate } from "@/lib/mock-data";
@@ -61,6 +64,9 @@ export default function Dashboard() {
   const [filtroMes, setFiltroMes] = useState<number>(mesAtual);
   const [mostrarFiltroPeriodo, setMostrarFiltroPeriodo] = useState(false);
   const [filtroMovimentacao, setFiltroMovimentacao] = useState<"todas" | "entradas" | "saidas">("todas");
+  const [lucroPeriodoOpen, setLucroPeriodoOpen] = useState(false);
+  const [lucroClienteOpen, setLucroClienteOpen] = useState(false);
+  const [movimentacoesOpen, setMovimentacoesOpen] = useState(false);
 
   const prefixMes = useMemo(
     () => `${filtroAno}-${String(filtroMes).padStart(2, "0")}`,
@@ -263,6 +269,7 @@ export default function Dashboard() {
       setClienteIdSaida("__nenhum__");
       setOpenSaida(false);
       toast.success("Saída registrada. Veja o lucro por cliente abaixo.");
+      setLucroClienteOpen(true);
       setTimeout(() => lucroPorClienteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 400);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -404,11 +411,6 @@ export default function Dashboard() {
     [clients, ordersNoPeriodoPagos, expensesNoPeriodo]
   );
 
-  const clientesComPedidoNoPeriodo = useMemo(
-    () => new Set(ordersNoPeriodoPagos.map((o) => o.cliente_id).filter(Boolean)).size,
-    [ordersNoPeriodoPagos]
-  );
-
   // Lucro por período: mês a mês no ano selecionado
   const lucroPorPeriodo = useMemo(() => {
     return MESES.map((m) => {
@@ -489,7 +491,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Pedidos no período (pagos)" value={loading ? "—" : ordersNoPeriodoPagos.length} icon={ShoppingCart} />
-        <MetricCard title="Clientes no período" value={loading ? "—" : clientesComPedidoNoPeriodo} icon={Users} />
+        <MetricCard title="Lucro do mês" value={loading ? "—" : formatCurrency(faturamentoMes - saidasMes)} icon={TrendingUp} />
         <MetricCard title="Faturamento do mês" value={loading ? "—" : formatCurrency(faturamentoMes)} icon={DollarSign} />
         <MetricCard title={`Faturamento ${filtroAno}`} value={loading ? "—" : formatCurrency(faturamentoAno)} icon={DollarSign} />
       </div>
@@ -509,7 +511,10 @@ export default function Dashboard() {
               variant="outline"
               size="sm"
               className="shrink-0"
-              onClick={() => lucroPorClienteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              onClick={() => {
+                setLucroClienteOpen(true);
+                lucroPorClienteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
             >
               <UserCheck className="h-4 w-4 mr-2" />
               Ver lucro por cliente
@@ -777,9 +782,24 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div>
-            <h3 className="text-sm font-medium mb-3">Movimentações do período</h3>
-            <Tabs value={filtroMovimentacao} onValueChange={(v) => setFiltroMovimentacao(v as "todas" | "entradas" | "saidas")} className="mb-3">
+          <Collapsible open={movimentacoesOpen} onOpenChange={setMovimentacoesOpen}>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 className="text-sm font-medium">Movimentações do período</h3>
+                {!movimentacoesOpen && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {movimentacoes.length} movimentações • Clique na seta para ver
+                  </p>
+                )}
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8">
+                  {movimentacoesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent>
+            <Tabs value={filtroMovimentacao} onValueChange={(v) => setFiltroMovimentacao(v as "todas" | "entradas" | "saidas")} className="mb-3 mt-2">
               <TabsList className="w-full sm:w-auto">
                 <TabsTrigger value="todas">Todas</TabsTrigger>
                 <TabsTrigger value="entradas">Entradas</TabsTrigger>
@@ -925,21 +945,62 @@ export default function Dashboard() {
                 </Card>
               ))}
             </div>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
       </Card>
 
       <Card className="shadow-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Lucro por período
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Entradas menos saídas de cada mês no ano {filtroAno}.
-          </p>
-        </CardHeader>
-        <CardContent className="p-0 overflow-hidden">
+        <Collapsible open={lucroPeriodoOpen} onOpenChange={setLucroPeriodoOpen}>
+          <CardHeader className="pb-3 py-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <BarChart3 className="h-5 w-5 shrink-0" />
+                <div>
+                  <CardTitle className="text-lg font-semibold">Lucro por período</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {!lucroPeriodoOpen
+                      ? `Clique na seta para ver mês a mês • Ano ${filtroAno}`
+                      : `Entradas menos saídas de cada mês no ano ${filtroAno}.`}
+                  </p>
+                </div>
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9">
+                  {lucroPeriodoOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+        <CardContent className="p-0 overflow-hidden pt-0">
+          {!loading && lucroPorPeriodo.some((p) => p.entradas > 0 || p.saidas > 0) && (
+            <div className="p-4 pb-2">
+              <ChartContainer
+                config={
+                  {
+                    entradas: { label: "Entradas", color: "hsl(152, 56%, 46%)" },
+                    saidas: { label: "Saídas", color: "hsl(0, 84%, 60%)" },
+                  } satisfies ChartConfig
+                }
+                className="h-[220px] w-full"
+              >
+                <BarChart data={lucroPorPeriodo} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="mesLabel" tickLine={false} axisLine={false} className="text-xs" />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    className="text-xs"
+                    tickFormatter={(v) => (v >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent formatter={(v) => formatCurrency(Number(v))} />} />
+                  <Bar dataKey="entradas" fill="var(--color-entradas)" radius={[4, 4, 0, 0]} name="Entradas" />
+                  <Bar dataKey="saidas" fill="var(--color-saidas)" radius={[4, 4, 0, 0]} name="Saídas" />
+                </BarChart>
+              </ChartContainer>
+            </div>
+          )}
           <div className="hidden md:block overflow-x-auto">
             <Table className="min-w-[400px]">
               <TableHeader>
@@ -1000,19 +1061,34 @@ export default function Dashboard() {
               ))}
           </div>
         </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       <Card ref={lucroPorClienteRef} className="shadow-card scroll-mt-4">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <UserCheck className="h-5 w-5" />
-            Lucro por cliente
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Faturamento (pedidos) menos saídas vinculadas ao cliente no período selecionado (ex.: pagamento a fornecedor). Vincule a saída ao cliente ao registrar.
-          </p>
-        </CardHeader>
-        <CardContent className="p-0 overflow-hidden">
+        <Collapsible open={lucroClienteOpen} onOpenChange={setLucroClienteOpen}>
+          <CardHeader className="pb-3 py-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <UserCheck className="h-5 w-5 shrink-0" />
+                <div>
+                  <CardTitle className="text-lg font-semibold">Lucro por cliente</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {!lucroClienteOpen
+                      ? `Clique na seta para ver detalhes • ${lucroPorCliente.length} cliente(s)`
+                      : "Faturamento menos saídas vinculadas ao cliente no período selecionado."}
+                  </p>
+                </div>
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9">
+                  {lucroClienteOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+        <CardContent className="p-0 overflow-hidden pt-0">
           <div className="hidden md:block overflow-x-auto">
             <Table className="min-w-[400px]">
               <TableHeader>
@@ -1079,6 +1155,8 @@ export default function Dashboard() {
             ))}
           </div>
         </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
     </div>
   );
