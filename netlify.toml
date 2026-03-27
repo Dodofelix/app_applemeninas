@@ -2,6 +2,12 @@
   command = "npm run build"
   publish = "dist"
 
+# Navegadores pedem /favicon.ico — aponta para o PNG do símbolo Apple Meninas
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/favicon.png"
+  status = 200
+
 # SPA: todas as rotas servem index.html (React Router)
 [[redirects]]
   from = "/*"
